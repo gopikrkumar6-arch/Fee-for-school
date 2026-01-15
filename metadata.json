@@ -1,0 +1,8 @@
+{
+  "name": "Copy of 09012026",
+  "description": "Bank transfer and branch added",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
