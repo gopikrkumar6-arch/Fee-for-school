@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Directory from './pages/Directory';
 import Academics from './pages/Academics';
 import Dashboard from './pages/Dashboard';
+import CounterEntry from './pages/CounterEntry';
 import DemandSlip from './pages/DemandSlip';
 import Admissions from './pages/Admissions';
 import Settings from './pages/Settings';
@@ -181,6 +182,17 @@ const App: React.FC = () => {
             targetStudentId={dashboardTargetId}
             branchCollections={branchCollections}
             setBranchCollections={setBranchCollections}
+          />
+        );
+      case Page.CounterEntry:
+        return (
+          <CounterEntry
+            branchCollections={branchCollections}
+            setBranchCollections={setBranchCollections}
+            students={students}
+            currentSession={currentSession}
+            feeStructure={feeStructures[currentSession]}
+            addLog={addLog}
           />
         );
       case Page.ReceiptManager:

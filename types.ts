@@ -3,6 +3,7 @@ export enum Page {
   Home = 'home',
   Directory = 'directory',
   Dashboard = 'dashboard',
+  CounterEntry = 'counter-entry',
   DemandSlip = 'demand-slip',
   Payments = 'payments',
   Academics = 'academics',

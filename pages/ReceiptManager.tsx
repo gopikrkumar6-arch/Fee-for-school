@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ReceiptBook, CancelledReceipt, FeeRecord } from '../types';
+import { ReceiptBook, CancelledReceipt, FeeRecord, BranchCollection } from '../types';
 import { formatDate } from '../constants';
 import DemandSlip from './DemandSlip';
 
@@ -18,7 +18,7 @@ interface ReceiptManagerProps {
   onUpdateStudents?: (list: FeeRecord[]) => void;
   currentSession?: string;
   isReadOnly?: boolean;
-  branchCollections?: any[];
+  branchCollections?: BranchCollection[];
 }
 
 const ReceiptManager: React.FC<ReceiptManagerProps> = ({ 
@@ -32,7 +32,8 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
   setPersistentAuditOpen = (_open: boolean) => {},
   onUpdateStudents = (_list: FeeRecord[]) => {},
   currentSession = '2026-27',
-  isReadOnly = false
+  isReadOnly = false,
+  branchCollections = []
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'receipts' | 'demands'>('receipts');
   const [books, setBooks] = useState<ReceiptBook[]>([]);
@@ -95,7 +96,8 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
       
       if (matchesMeta) return true;
 
-      return students.some(student => {
+      // Check students for matches
+      const hasStudentMatch = students.some(student => {
         const studentMatches = student.studentName.toLowerCase().includes(term) || 
                                student.id.toLowerCase().includes(term);
         if (!studentMatches) return false;
@@ -107,13 +109,25 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
           return false;
         });
       });
+
+      if (hasStudentMatch) return true;
+
+      // Check branch collections for matches
+      return branchCollections.some(bc => {
+          const matchesInfo = bc.studentName.toLowerCase().includes(term) || bc.receiptNo.toLowerCase().includes(term);
+          if (!matchesInfo) return false;
+          const num = extractNum(bc.receiptNo);
+          return num !== null && num >= b.startNo && num <= b.endNo;
+      });
     });
-  }, [books, persistentSearch, students]);
+  }, [books, persistentSearch, students, branchCollections]);
 
   const bookUsageList = useMemo(() => {
     if (!selectedBookForAudit) return [];
     
     const usage: any[] = [];
+
+    // 1. Process Normal Students Ledger
     students.forEach(student => {
       student.history.forEach(txn => {
         if (txn.type === 'Credit' && txn.receiptId !== '-') {
@@ -127,14 +141,34 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
               amount: txn.amount,
               date: txn.date,
               mode: txn.mode,
-              fullRecord: student 
+              fullRecord: student,
+              source: 'Ledger'
             });
           }
         }
       });
     });
+
+    // 2. Process Campus Entry (Branch Collections)
+    branchCollections.forEach(bc => {
+        const num = extractNum(bc.receiptNo);
+        if (num !== null && num >= selectedBookForAudit.startNo && num <= selectedBookForAudit.endNo) {
+            usage.push({
+                studentName: bc.studentName,
+                uid: 'EXTERNAL',
+                grade: `${bc.grade} (${bc.branch})`,
+                receiptId: bc.receiptNo,
+                amount: bc.amount,
+                date: bc.date,
+                mode: bc.paymentMode,
+                fullRecord: null, // No ledger record for external
+                source: 'Campus Entry'
+            });
+        }
+    });
+
     return usage.sort((a, b) => (extractNum(a.receiptId) || 0) - (extractNum(b.receiptId) || 0));
-  }, [selectedBookForAudit, students]);
+  }, [selectedBookForAudit, students, branchCollections]);
 
   const filteredUsageList = useMemo(() => {
     if (!auditSearchTerm.trim()) return bookUsageList;
@@ -215,8 +249,8 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
     setBooks(books.map(b => b.id === id ? { ...b, status } : b));
   };
 
-  const handleStudentClick = (student: FeeRecord) => {
-    if (onSelectStudent) {
+  const handleStudentClick = (student: FeeRecord | null) => {
+    if (student && onSelectStudent) {
       onSelectStudent(student);
     }
   };
@@ -272,7 +306,7 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                     <div className="flex items-center gap-6">
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
-                            <input type="text" placeholder="Search student in audit..." value={auditSearchTerm} onChange={(e) => setAuditSearchTerm(e.target.value)} className="bg-white/10 border border-white/20 text-white placeholder-white/40 rounded-xl pl-9 pr-4 py-2 text-xs font-bold focus:bg-white focus:text-red-950 focus:border-white transition-all outline-none min-w-[240px]" />
+                            <input type="text" placeholder="Search entry in audit..." value={auditSearchTerm} onChange={(e) => setAuditSearchTerm(e.target.value)} className="bg-white/10 border border-white/20 text-white placeholder-white/40 rounded-xl pl-9 pr-4 py-2 text-xs font-bold focus:bg-white focus:text-red-950 focus:border-white transition-all outline-none min-w-[240px]" />
                         </div>
                         <button onClick={() => { setPersistentAuditOpen(false); setPersistentAuditBookId(null); setAuditSearchTerm(''); }} className="text-white/40 hover:text-white transition-colors text-3xl">&times;</button>
                     </div>
@@ -282,11 +316,21 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                     {filteredUsageList.length > 0 ? (
                       <div className="space-y-4">
                         {filteredUsageList.map((entry, idx) => (
-                          <button key={idx} onClick={() => handleStudentClick(entry.fullRecord)} className="w-full text-left bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:border-red-950 hover:shadow-md transition-all group active:scale-[0.99]">
+                          <button 
+                            key={idx} 
+                            onClick={() => entry.source === 'Ledger' && handleStudentClick(entry.fullRecord)} 
+                            disabled={entry.source === 'Campus Entry'}
+                            className={`w-full text-left bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between transition-all group ${entry.source === 'Ledger' ? 'hover:border-red-950 hover:shadow-md active:scale-[0.99] cursor-pointer' : 'cursor-default'}`}
+                          >
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 font-bold text-xs uppercase">{entry.studentName.charAt(0)}</div>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs uppercase ${entry.source === 'Campus Entry' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>{entry.studentName.charAt(0)}</div>
                               <div>
-                                <p className="font-bold text-red-950 text-sm group-hover:text-red-700 transition-colors">{entry.studentName}</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="font-bold text-red-950 text-sm">{entry.studentName}</p>
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${entry.source === 'Campus Entry' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                                        {entry.source}
+                                    </span>
+                                </div>
                                 <p className="text-[9px] font-black text-slate-400 uppercase">UID: {entry.uid} • {entry.grade}</p>
                               </div>
                             </div>
@@ -299,9 +343,11 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                                   <p className="font-black text-green-700 text-sm">₹{entry.amount.toLocaleString()}</p>
                                   <p className="text-[9px] text-slate-400 font-bold uppercase">{entry.mode}</p>
                               </div>
-                              <div className="text-red-950 font-black text-[10px] opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest flex items-center gap-1">
-                                  View Ledger <span>→</span>
-                              </div>
+                              {entry.source === 'Ledger' && (
+                                <div className="text-red-950 font-black text-[10px] opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest flex items-center gap-1">
+                                    View Ledger <span>→</span>
+                                </div>
+                              )}
                             </div>
                           </button>
                         ))}
@@ -334,7 +380,7 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
 
             {isModalOpen && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-red-950/40 backdrop-blur-md p-4 animate-in fade-in">
-                <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 border border-slate-100 animate-in zoom-in-95">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl max-md w-full p-8 border border-slate-100 animate-in zoom-in-95">
                   <div className="flex items-center gap-3 mb-8">
                     <div className="w-14 h-14 bg-red-900 rounded-2xl flex items-center justify-center text-white shadow-lg"><span className="text-2xl">📓</span></div>
                     <div>
@@ -383,7 +429,7 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                         </div>
                         <div className="relative w-full md:w-96">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-                            <input type="text" placeholder="Search by Label, ID or Student Name..." value={persistentSearch} onChange={(e) => setPersistentSearch(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-950 transition-all shadow-sm" />
+                            <input type="text" placeholder="Search by Label, ID or Match..." value={persistentSearch} onChange={(e) => setPersistentSearch(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-950 transition-all shadow-sm" />
                             {persistentSearch.length > 0 && (
                               <button 
                                 onClick={() => setPersistentSearch('')}
@@ -409,20 +455,31 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filteredBooks.map(book => {
-                                const searchMatchesInAudit = persistentSearch.trim() ? students.filter(student => {
-                                    const term = persistentSearch.toLowerCase();
-                                    const studentMatches = student.studentName.toLowerCase().includes(term) || student.id.toLowerCase().includes(term);
-                                    if (!studentMatches) return false;
-                                    return student.history.some(txn => {
-                                        if (txn.type !== 'Credit' || txn.receiptId === '-') return false;
-                                        const num = extractNum(txn.receiptId);
+                                const searchMatchesInAudit = persistentSearch.trim() ? [
+                                    ...students.filter(student => {
+                                        const term = persistentSearch.toLowerCase();
+                                        const studentMatches = student.studentName.toLowerCase().includes(term) || student.id.toLowerCase().includes(term);
+                                        if (!studentMatches) return false;
+                                        return student.history.some(txn => {
+                                            if (txn.type !== 'Credit' || txn.receiptId === '-') return false;
+                                            const num = extractNum(txn.receiptId);
+                                            return num !== null && num >= book.startNo && num <= book.endNo;
+                                        });
+                                    }),
+                                    ...branchCollections.filter(bc => {
+                                        const term = persistentSearch.toLowerCase();
+                                        const bcMatches = bc.studentName.toLowerCase().includes(term) || bc.receiptNo.toLowerCase().includes(term);
+                                        if (!bcMatches) return false;
+                                        const num = extractNum(bc.receiptNo);
                                         return num !== null && num >= book.startNo && num <= book.endNo;
-                                    });
-                                }) : [];
+                                    })
+                                ] : [];
+                                
                                 const bookCancellations = cancelledReceipts.filter(r => {
                                     const n = extractNum(r.receiptNo);
                                     return n !== null && n >= book.startNo && n <= book.endNo;
                                 }).length;
+
                                 const ledgerUsage = students.reduce((acc, s) => {
                                   return acc + s.history.filter(txn => {
                                     if (txn.type !== 'Credit') return false;
@@ -430,8 +487,16 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                                     return n !== null && n >= book.startNo && n <= book.endNo;
                                   }).length;
                                 }, 0);
+
+                                const branchUsage = branchCollections.filter(bc => {
+                                    const n = extractNum(bc.receiptNo);
+                                    return n !== null && n >= book.startNo && n <= book.endNo;
+                                }).length;
+
+                                const totalUsed = ledgerUsage + branchUsage + bookCancellations;
                                 const totalRange = book.endNo - book.startNo + 1;
-                                const remainingPages = totalRange - bookCancellations - ledgerUsage;
+                                const remainingPages = Math.max(0, totalRange - totalUsed);
+                                
                                 return (
                                     <tr key={book.id} className="hover:bg-amber-50/30 transition-colors group cursor-pointer" onClick={() => { setPersistentAuditBookId(book.id); setPersistentAuditOpen(true); }}>
                                         <td className="px-8 py-6 text-sm font-medium text-slate-500">{formatDate(book.creationDate)}</td>
@@ -440,7 +505,12 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                                           <p className="text-[9px] text-slate-400 uppercase font-black mb-2">ID: {book.id}</p>
                                           {searchMatchesInAudit.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                              {searchMatchesInAudit.map(s => (<span key={s.id} className="inline-flex items-center px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase rounded border border-indigo-100 shadow-sm">Matched: {s.studentName}</span>))}
+                                              {searchMatchesInAudit.slice(0, 3).map((s: any, idx) => (
+                                                  <span key={idx} className={`inline-flex items-center px-2 py-0.5 text-[8px] font-black uppercase rounded border shadow-sm ${s.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                                                    Matched: {s.studentName}
+                                                  </span>
+                                              ))}
+                                              {searchMatchesInAudit.length > 3 && <span className="text-[8px] font-bold text-slate-400">+{searchMatchesInAudit.length - 3} more</span>}
                                             </div>
                                           )}
                                         </td>
@@ -450,7 +520,7 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
                                                 <span className={`text-sm font-black ${remainingPages <= 0 ? 'text-red-400' : 'text-slate-700'}`}>{remainingPages} / {totalRange}</span>
                                                 <div className="flex gap-2 mt-1">
                                                     {bookCancellations > 0 && (<span className="text-[7px] font-black text-red-500 uppercase px-1.5 py-0.5 bg-red-50 rounded">{bookCancellations} Void</span>)}
-                                                    {ledgerUsage > 0 && (<span className="text-[7px] font-black text-green-600 uppercase px-1.5 py-0.5 bg-green-50 rounded">{ledgerUsage} Issued</span>)}
+                                                    {(ledgerUsage + branchUsage) > 0 && (<span className="text-[7px] font-black text-green-600 uppercase px-1.5 py-0.5 bg-green-50 rounded">{(ledgerUsage + branchUsage)} Issued</span>)}
                                                 </div>
                                             </div>
                                         </td>

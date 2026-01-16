@@ -15,6 +15,7 @@ export const NAV_LINKS = [
   { name: 'Home', path: Page.Home, restricted: false },
   { name: 'Student Directory', path: Page.Directory, restricted: true },
   { name: 'Ledger Portal', path: Page.Dashboard, restricted: true },
+  { name: 'Campus Entry', path: Page.CounterEntry, restricted: true },
   { name: 'Receipt Manager', path: Page.ReceiptManager, restricted: true },
   { name: 'Accounts', path: Page.Hisab, restricted: true },
   { name: 'Fee Schedule', path: Page.Academics, restricted: false },
@@ -27,11 +28,12 @@ const SESSION_MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 
 
 export const formatDate = (date: Date | string | number = new Date()): string => {
   const d = new Date(date);
+  // Returns format like "16 Jan 2026" then lowercases it to "16 jan 2026"
   return d.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
-  });
+  }).replace(/,/g, '').toLowerCase();
 };
 
 export const getStudentPhoto = (photoUrl?: string, name: string = 'Student'): string => {
