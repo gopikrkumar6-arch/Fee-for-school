@@ -11,6 +11,7 @@ interface NavbarProps {
   currentSession: string;
   availableSessions: string[];
   onSessionChange: (session: string) => void;
+  onToggleHistory?: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ 
@@ -20,7 +21,8 @@ const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   currentSession,
   availableSessions,
-  onSessionChange
+  onSessionChange,
+  onToggleHistory
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
@@ -76,6 +78,17 @@ const Navbar: React.FC<NavbarProps> = ({
 
             {isAuthenticated ? (
                <div className="flex items-center gap-3">
+                 
+                 {/* New Global History Trigger */}
+                 <button 
+                    onClick={onToggleHistory}
+                    className="p-2.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-900 hover:text-white transition-all border border-slate-200 shadow-sm relative group"
+                    title="Global Payment History"
+                 >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white animate-pulse"></span>
+                 </button>
+
                  <div className="relative">
                     <button 
                       onClick={() => setSessionMenuOpen(!sessionMenuOpen)}
@@ -85,7 +98,7 @@ const Navbar: React.FC<NavbarProps> = ({
                           : 'bg-amber-50 border-amber-300 text-amber-800'
                       }`}
                     >
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                       <span>Session {currentSession}</span>
                     </button>
                     
@@ -134,6 +147,14 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="md:hidden flex items-center gap-2">
+            {isAuthenticated && (
+              <button 
+                onClick={onToggleHistory}
+                className="p-3 rounded-xl bg-slate-100 text-slate-600 border border-slate-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </button>
+            )}
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="p-3 rounded-xl bg-white border border-slate-200 text-slate-600 shadow-sm"

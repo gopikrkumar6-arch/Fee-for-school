@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AIChatbot from './components/AIChatbot';
+import HistoryDrawer from './components/HistoryDrawer';
 import Home from './pages/Home';
 import Directory from './pages/Directory';
 import Academics from './pages/Academics';
@@ -25,9 +26,10 @@ const App: React.FC = () => {
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
   const [dashboardTargetId, setDashboardTargetId] = useState<string | null>(null);
   
-  // Session State
+  // UI States
   const [currentSession, setCurrentSession] = useState('2026-27');
   const [showArchivedSession, setShowArchivedSession] = useState(true);
+  const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   
   // Persistent Receipt Manager State
   const [receiptSearch, setReceiptSearch] = useState('');
@@ -120,7 +122,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentPage(Page.Home);
-    setHistoryStack([]); // Clear history on logout for security
+    setHistoryStack([]); 
     addLog('System Logout', 'Administrator logged out', 'SYSTEM');
   };
 
@@ -261,10 +263,23 @@ const App: React.FC = () => {
         currentSession={currentSession}
         availableSessions={['2026-27', '2025-26']}
         onSessionChange={setCurrentSession}
+        onToggleHistory={() => setIsHistoryDrawerOpen(true)}
       />
       <main className="flex-grow">
         {renderPage()}
       </main>
+      
+      {isAuthenticated && (
+        <HistoryDrawer 
+          isOpen={isHistoryDrawerOpen}
+          onClose={() => setIsHistoryDrawerOpen(false)}
+          students={students}
+          branchCollections={branchCollections}
+          expenses={expenses}
+          onSelectStudent={handleStudentSelect}
+        />
+      )}
+
       <Footer />
       <AIChatbot />
     </div>
