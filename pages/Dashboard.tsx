@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { FeeRecord, PaymentMode, Transaction, FeeCategory, ClassFeeMetadata, AcademicStatus, ReceiptBook, CancelledReceipt, BranchCollection } from '../types';
+import { FeeRecord, PaymentMode, Transaction, FeeCategory, ClassFeeMetadata, AcademicStatus, ReceiptBook, CancelledReceipt, BranchCollection, DueReminder } from '../types';
 import { SCHOOL_INFO, formatDate, getStudentPhoto, BRANCH_OPTIONS } from '../constants';
 
 const SESSION_MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
@@ -16,6 +16,8 @@ interface DashboardProps {
   targetStudentId?: string | null;
   branchCollections: BranchCollection[];
   setBranchCollections: React.Dispatch<React.SetStateAction<BranchCollection[]>>;
+  reminders?: DueReminder[];
+  setReminders?: React.Dispatch<React.SetStateAction<DueReminder[]>>;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -27,7 +29,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   addLog,
   targetStudentId,
   branchCollections,
-  setBranchCollections
+  setBranchCollections,
+  reminders = [],
+  setReminders
 }) => {
   const [selectedStudent, setSelectedStudent] = useState<FeeRecord | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +50,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<'ledger' | 'collect'>('ledger');
+
+  // Reminder Modal States
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderTargetDate, setReminderTargetDate] = useState('');
+  const [reminderDescription, setReminderDescription] = useState('');
 
   const [isExemptionModalOpen, setIsExemptionModalOpen] = useState(false);
   const [exemptMonths, setExemptMonths] = useState<string[]>([]);
@@ -424,6 +433,47 @@ const Dashboard: React.FC<DashboardProps> = ({
        if (SESSION_MONTHS.indexOf(m) >= startDiscountIndex) totalDiscount += (selectedStudent.cashDiscount || 0);
     });
     return totalDiscount;
+  };
+  const handleCreateReminder = () => {
+    if (!selectedStudent) return;
+    const dueAmount = getNetDue(selectedStudent);
+    if (dueAmount <= 0) {
+      alert('No dues found for this student.');
+      return;
+    }
+    // Reset form fields
+    setReminderTargetDate('');
+    setReminderDescription('');
+    setIsReminderModalOpen(true);
+  };
+
+  const handleSaveReminder = () => {
+    if (!selectedStudent || !setReminders) return;
+    if (!reminderTargetDate || !reminderDescription.trim()) {
+      alert('Please fill in all fields.');
+      return;
+    }
+    const dueAmount = getNetDue(selectedStudent);
+    const newReminder: DueReminder = {
+      id: `REM-${Date.now()}`,
+      studentId: selectedStudent.id,
+      studentName: selectedStudent.studentName,
+      fatherName: selectedStudent.fatherName,
+      mobileNumber: selectedStudent.mobileNumber || 'N/A',
+      grade: selectedStudent.grade,
+      section: selectedStudent.section,
+      dueAmount,
+      createdDate: new Date().toISOString(),
+      targetDate: reminderTargetDate,
+      description: reminderDescription,
+      status: 'Active'
+    };
+    setReminders(prev => [newReminder, ...prev]);
+    if (addLog) addLog('Dues Reminder Created', `Reminder created for ${selectedStudent.studentName} - Target: ${reminderTargetDate} - Due: ₹${dueAmount.toLocaleString()}`, 'UPDATE');
+    setIsReminderModalOpen(false);
+    setReminderTargetDate('');
+    setReminderDescription('');
+    alert(`Reminder created for ${selectedStudent.studentName}!`);
   };
 
   const openDiscountModal = () => {
@@ -901,6 +951,58 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       )}
+      {isReminderModalOpen && selectedStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border-2 border-amber-100">
+            <div className="flex justify-between items-center mb-6 border-b border-amber-100 pb-4">
+              <div>
+                <h3 className="text-2xl font-bold text-amber-700">📌 Create Reminder</h3>
+                <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">{selectedStudent.studentName} - {selectedStudent.grade}-{selectedStudent.section}</p>
+              </div>
+              <button onClick={() => setIsReminderModalOpen(false)} className="text-3xl text-slate-300 hover:text-amber-700 transition-colors">&times;</button>
+            </div>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-600 tracking-widest mb-2">🎯 Target Date</label>
+                <input 
+                  type="date" 
+                  value={reminderTargetDate} 
+                  onChange={e => setReminderTargetDate(e.target.value)} 
+                  className="w-full border-2 border-amber-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:outline-none focus:border-amber-500 focus:bg-amber-50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-600 tracking-widest mb-2">💬 Description</label>
+                <textarea 
+                  value={reminderDescription} 
+                  onChange={e => setReminderDescription(e.target.value)} 
+                  placeholder="e.g., Follow-up call required, payment pending for exam fees..."
+                  className="w-full border-2 border-amber-200 rounded-xl p-3 text-sm font-normal text-slate-700 focus:outline-none focus:border-amber-500 focus:bg-amber-50 transition-all resize-none"
+                  rows={4}
+                />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Due Amount</p>
+                <p className="text-2xl font-black text-amber-900">₹{getNetDue(selectedStudent).toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button 
+                onClick={() => setIsReminderModalOpen(false)} 
+                className="flex-1 px-4 py-3 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-bold uppercase tracking-widest transition-all border border-slate-200"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveReminder} 
+                className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl text-sm font-bold uppercase tracking-widest shadow-lg hover:bg-amber-700 active:scale-95 transition-all border-b-4 border-amber-800"
+              >
+                ✓ Create Reminder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {fullScreenPhoto && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 animate-in zoom-in duration-200" onClick={() => setFullScreenPhoto(null)}><img src={fullScreenPhoto} alt="Full Screen" className="max-w-full max-h-[90vh] rounded-lg shadow-2xl border-4 border-white object-contain" /><button className="absolute top-4 right-4 text-white text-4xl hover:opacity-80 transition-opacity">&times;</button></div>
       )}
@@ -932,6 +1034,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                   <div className="flex flex-col gap-3 items-end">
                     <button onClick={() => setIsFamilyBatchOpen(true)} className="group flex items-center gap-3 bg-red-950 text-white pl-3 pr-5 py-2.5 rounded-2xl shadow-xl hover:bg-red-800 transition-all border-b-4 border-amber-700 active:border-b-0 active:translate-y-1"><div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform"><span className="text-sm">👪</span></div><div className="text-left"><p className="text-[10px] font-black uppercase tracking-widest leading-none mb-0.5">Family Batch</p><p className="text-[8px] font-bold text-amber-300 uppercase opacity-80 lordship leading-none">{siblings.length + 1} Members Linked</p></div></button>
+                    <button onClick={handleCreateReminder} className="group flex items-center gap-3 bg-amber-600 text-white pl-3 pr-5 py-2.5 rounded-2xl shadow-xl hover:bg-amber-700 transition-all border-b-4 border-amber-800 active:border-b-0 active:translate-y-1"><div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-amber-600 shadow-md group-hover:scale-110 transition-transform"><span className="text-sm">🔔</span></div><div className="text-left"><p className="text-[10px] font-black uppercase tracking-widest leading-none mb-0.5">Create Reminder</p><p className="text-[8px] font-bold text-amber-200 uppercase opacity-90 lordship leading-none">Due: ₹{getNetDue(selectedStudent).toLocaleString()}</p></div></button>
                     <div className="flex bg-slate-200 p-1 rounded-lg">
                       <button onClick={() => setActiveTab('ledger')} className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'ledger' ? 'bg-white text-red-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Ledger</button>
                       <button onClick={() => setActiveTab('collect')} className={`px-4 py-2 rounded-md text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'collect' ? 'bg-white text-school-burgundy shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Collect</button>

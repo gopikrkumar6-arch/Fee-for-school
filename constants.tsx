@@ -17,6 +17,7 @@ export const NAV_LINKS = [
   { name: 'Ledger Portal', path: Page.Dashboard, restricted: true },
   { name: 'Campus Entry', path: Page.CounterEntry, restricted: true },
   { name: 'Receipt Manager', path: Page.ReceiptManager, restricted: true },
+  { name: 'Reminders', path: Page.Reminders, restricted: true },
   { name: 'Accounts', path: Page.Hisab, restricted: true },
   { name: 'Fee Schedule', path: Page.Academics, restricted: false },
   { name: 'Settings', path: Page.Settings, restricted: true },

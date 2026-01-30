@@ -13,7 +13,8 @@ export enum Page {
   Settings = 'settings',
   Hisab = 'hisab',
   Alumni = 'alumni',
-  ReceiptManager = 'receipt-manager'
+  ReceiptManager = 'receipt-manager',
+  Reminders = 'reminders'
 }
 
 export interface ChatMessage {
@@ -96,6 +97,35 @@ export interface BranchCollection {
 
 export interface MonthlyStatus {
   [month: string]: 'Paid' | 'Unpaid' | 'Partial' | 'Exempted';
+}
+
+export interface DueReminder {
+  id: string;
+  studentId: string;
+  studentName: string;
+  fatherName: string;
+  mobileNumber: string;
+  grade: string;
+  section: string;
+  dueAmount: number;
+  createdDate: string;
+  targetDate: string;
+  description: string;
+  status: 'Active' | 'Resolved' | 'Archived';
+}
+
+export interface ReminderHistory {
+  id: string;
+  studentId: string;
+  studentName: string;
+  fatherName: string;
+  mobileNumber: string;
+  grade: string;
+  rollNo: string;
+  reminderTime: string; // ISO timestamp
+  dueAmount: number;
+  targetDate?: string; // Due date for the fee
+  method?: 'SMS' | 'WhatsApp' | 'Manual' | 'Auto';
 }
 
 export interface ExamFeeStatus {

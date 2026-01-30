@@ -16,7 +16,8 @@ import Hisab from './pages/Hisab';
 import Login from './pages/Login';
 import Contact from './pages/Contact';
 import ReceiptManager from './pages/ReceiptManager';
-import { Page, FeeRecord, FeeCategory, Expense, ActionLog, BranchCollection } from './types';
+import DueReminders from './pages/DueReminders';
+import { Page, FeeRecord, FeeCategory, Expense, ActionLog, BranchCollection, DueReminder, ReminderHistory } from './types';
 import { MOCK_FEES, CLASS_FEE_STRUCTURE } from './constants';
 
 const App: React.FC = () => {
@@ -38,6 +39,10 @@ const App: React.FC = () => {
 
   // Cross-Branch Collections State
   const [branchCollections, setBranchCollections] = useState<BranchCollection[]>([]);
+
+  // Due Reminders State
+  const [dueReminders, setDueReminders] = useState<DueReminder[]>([]);
+  const [reminderHistory, setReminderHistory] = useState<ReminderHistory[]>([]);
 
   // Fee Structure State
   const [feeStructures, setFeeStructures] = useState<Record<string, FeeCategory[]>>({
@@ -65,6 +70,7 @@ const App: React.FC = () => {
     const savedLogs = localStorage.getItem('ues_action_logs');
     const savedExpenses = localStorage.getItem('ues_expenses');
     const savedBranch = localStorage.getItem('ues_branch_collections');
+    const savedReminders = localStorage.getItem('ues_due_reminders');
     
     if (savedStudents) {
       setStudents(JSON.parse(savedStudents));
@@ -75,6 +81,10 @@ const App: React.FC = () => {
     if (savedLogs) setActionLogs(JSON.parse(savedLogs));
     if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
     if (savedBranch) setBranchCollections(JSON.parse(savedBranch));
+    if (savedReminders) setDueReminders(JSON.parse(savedReminders));
+    
+    const savedReminderHistory = localStorage.getItem('ues_reminder_history');
+    if (savedReminderHistory) setReminderHistory(JSON.parse(savedReminderHistory));
   }, []);
 
   // Persistence: Save Data
@@ -95,6 +105,14 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ues_branch_collections', JSON.stringify(branchCollections));
   }, [branchCollections]);
+
+  useEffect(() => {
+    localStorage.setItem('ues_due_reminders', JSON.stringify(dueReminders));
+  }, [dueReminders]);
+
+  useEffect(() => {
+    localStorage.setItem('ues_reminder_history', JSON.stringify(reminderHistory));
+  }, [reminderHistory]);
 
   const addLog = useCallback((action: string, details: string, type: ActionLog['type']) => {
     const newLog: ActionLog = {
@@ -184,6 +202,8 @@ const App: React.FC = () => {
             targetStudentId={dashboardTargetId}
             branchCollections={branchCollections}
             setBranchCollections={setBranchCollections}
+            reminders={dueReminders}
+            setReminders={setDueReminders}
           />
         );
       case Page.CounterEntry:
@@ -246,6 +266,17 @@ const App: React.FC = () => {
         );
       case Page.Contact:
         return <Contact />;
+      case Page.Reminders:
+        return (
+          <DueReminders 
+            reminders={dueReminders}
+            setReminders={setDueReminders}
+            reminderHistory={reminderHistory}
+            setReminderHistory={setReminderHistory}
+            students={students}
+            onSelectStudent={handleStudentSelect}
+          />
+        );
       case Page.Login:
         return <Login onLogin={handleLogin} showArchive={showArchivedSession} />;
       default:
