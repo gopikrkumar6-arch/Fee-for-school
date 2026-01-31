@@ -40,7 +40,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Capacitor Sync
-        run: npx cap sync android --no-build
+        run: npx cap sync android
 
       - name: Build with Gradle
         run: |
