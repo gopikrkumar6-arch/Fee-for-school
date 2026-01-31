@@ -39,6 +39,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Clean Capacitor Android
+        run: |
+          npx cap copy android
+          rm -rf android/capacitor-android
+          
       - name: Capacitor Sync
         run: npx cap sync android
 
