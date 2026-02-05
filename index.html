@@ -5,7 +5,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Unique English School | Excellence in Education</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      var div = document.createElement('div');
+      div.style.position = 'fixed';
+      div.style.top = '0';
+      div.style.left = '0';
+      div.style.width = '100%';
+      div.style.height = '100%';
+      div.style.backgroundColor = 'white';
+      div.style.color = 'red';
+      div.style.padding = '20px';
+      div.style.zIndex = '9999';
+      div.style.overflow = 'scroll';
+      div.style.fontSize = '12px';
+      div.style.fontFamily = 'monospace';
+      div.innerHTML = '<h1>JS Error Caught:</h1><p>' + msg + '</p><p>URL: ' + url + '</p><p>Line: ' + lineNo + ', Col: ' + columnNo + '</p><p>Stack: ' + (error ? error.stack : 'N/A') + '</p><button onclick="window.location.reload()" style="padding: 10px; background: #7f1d1d; color: white; border: none; border-radius: 5px;">Reload App</button>';
+      document.body.appendChild(div);
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function (event) {
+      window.onerror('Unhandled Promise Rejection: ' + event.reason, '', 0, 0, event.reason);
+    });
+  </script>
+  <script src="https://cdn.tailwindcss.com" defer></script>
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800&display=swap"
     rel="stylesheet">
