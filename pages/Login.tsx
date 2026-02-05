@@ -4,11 +4,11 @@ import { SCHOOL_INFO } from '../constants';
 
 interface LoginProps {
   onLogin: (session: string) => void;
-  showArchive: boolean;
+  availableSessions: string[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, showArchive }) => {
-  const [selectedSession, setSelectedSession] = useState('2026-27');
+const Login: React.FC<LoginProps> = ({ onLogin, availableSessions }) => {
+  const [selectedSession, setSelectedSession] = useState(availableSessions[0] || '2026-27');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -41,38 +41,31 @@ const Login: React.FC<LoginProps> = ({ onLogin, showArchive }) => {
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Select Entry Ledger</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedSession('2026-27')}
-                className={`py-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${
-                  selectedSession === '2026-27' 
-                    ? 'bg-red-950 border-red-950 text-white shadow-lg scale-105' 
-                    : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
-                }`}
-              >
-                Session 2026-27
-              </button>
-              <button
-                type="button"
-                disabled={!showArchive}
-                onClick={() => setSelectedSession('2025-26')}
-                className={`py-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${
-                  !showArchive ? 'opacity-30 cursor-not-allowed grayscale' :
-                  selectedSession === '2025-26' 
-                    ? 'bg-amber-600 border-amber-600 text-white shadow-lg scale-105' 
-                    : 'bg-white border-slate-100 text-slate-400 hover:border-amber-200'
-                }`}
-              >
-                Archive 2025-26
-              </button>
+            <div className={`grid ${availableSessions.length > 2 ? 'grid-cols-1' : 'grid-cols-2'} gap-3 max-h-48 overflow-y-auto custom-scrollbar p-1`}>
+              {availableSessions.map((session, idx) => {
+                const isActive = idx === 0;
+
+                return (
+                  <button
+                    key={session}
+                    type="button"
+                    onClick={() => setSelectedSession(session)}
+                    className={`py-3 px-4 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${selectedSession === session
+                      ? 'bg-red-950 border-red-950 text-white shadow-lg scale-[1.02]'
+                      : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
+                      }`}
+                  >
+                    Session {session}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Access PIN</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               placeholder="••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

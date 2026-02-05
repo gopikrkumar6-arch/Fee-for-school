@@ -6,35 +6,20 @@ import { FeeCategory } from '../types';
 interface AcademicsProps {
   feeStructure?: FeeCategory[];
   session?: string;
+  selectedItems: Record<string, boolean>;
+  setSelectedItems: (items: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
+  waiverPercent: number;
+  setWaiverPercent: (val: number) => void;
 }
 
-const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTURE, session = '2026-27' }) => {
-  // State to track checkbox selections
-  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem('ues_schedule_selections');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  });
-  
-  // State for Editable Waiver Percentage
-  const [waiverPercent, setWaiverPercent] = useState<number>(() => {
-    const saved = localStorage.getItem('ues_global_waiver_config');
-    return saved !== null ? parseFloat(saved) : 15;
-  });
-
-  // Auto-save selections
-  useEffect(() => {
-    localStorage.setItem('ues_schedule_selections', JSON.stringify(selectedItems));
-  }, [selectedItems]);
-
-  // Auto-save waiver config
-  useEffect(() => {
-    localStorage.setItem('ues_global_waiver_config', waiverPercent.toString());
-  }, [waiverPercent]);
-
+const Academics: React.FC<AcademicsProps> = ({
+  feeStructure = CLASS_FEE_STRUCTURE,
+  session = '2026-27',
+  selectedItems,
+  setSelectedItems,
+  waiverPercent,
+  setWaiverPercent
+}) => {
   const isSelected = (className: string, item: string) => {
     const key = `${className}-${item}`;
     return !!selectedItems[key];
@@ -110,7 +95,7 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
           { key: 'booklet', label: 'Booklet', cost: cls.booklet },
         ];
 
-        const activeMiscCost = miscItems.reduce((total, item) => 
+        const activeMiscCost = miscItems.reduce((total, item) =>
           isSelected(cls.name, item.key) ? total + item.cost : total, 0
         );
 
@@ -299,7 +284,7 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
             </div>
             <div class="row">
               <span>Annual Net Tuition (${waiverPercent}% Waiver)</span>
-              <span>₹${(cls.tuition * 12 * (1 - waiverPercent/100)).toLocaleString()}</span>
+              <span>₹${(cls.tuition * 12 * (1 - waiverPercent / 100)).toLocaleString()}</span>
             </div>
             <div class="row">
               <span>Assessment Charges (Annual)</span>
@@ -346,10 +331,10 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 space-y-24 print:mt-0 print:px-0">
-        
+
         <section className="bg-white rounded-[3.5rem] p-4 md:p-12 shadow-2xl border-2 border-red-50 relative overflow-hidden print:rounded-none print:shadow-none print:border-none print:p-0">
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full translate-x-1/2 -translate-y-1/2 opacity-50 no-print"></div>
-          
+
           <div className="flex flex-col md:flex-row justify-between items-start mb-8 relative z-10 px-4 md:px-0">
             <div className="text-left">
               <div className="text-amber-700 font-bold text-xs uppercase tracking-[0.3em] mb-4 no-print">Session Fee Dossier</div>
@@ -359,26 +344,26 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
               </p>
             </div>
             <div className="mt-6 md:mt-0 flex flex-wrap gap-4 no-print">
-               <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex flex-col items-center shadow-sm">
-                  <label className="text-[9px] font-black uppercase text-amber-700 tracking-widest mb-1">Global Waiver (%)</label>
-                  <div className="relative">
-                    <input 
-                      type="number"
-                      value={waiverPercent}
-                      onChange={(e) => setWaiverPercent(parseFloat(e.target.value) || 0)}
-                      className="w-20 bg-white border border-amber-300 rounded-lg py-1.5 text-center font-black text-red-900 focus:ring-2 focus:ring-amber-500 outline-none"
-                    />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-400">%</span>
-                  </div>
-               </div>
-               <div className="flex flex-col gap-2">
-                 <button 
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex flex-col items-center shadow-sm">
+                <label className="text-[9px] font-black uppercase text-amber-700 tracking-widest mb-1">Global Waiver (%)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={waiverPercent}
+                    onChange={(e) => setWaiverPercent(parseFloat(e.target.value) || 0)}
+                    className="w-20 bg-white border border-amber-300 rounded-lg py-1.5 text-center font-black text-red-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-400">%</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
                   onClick={handlePrintFullSchedule}
                   className="bg-red-950 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg hover:bg-red-800 transition-all flex items-center justify-center border-b-4 border-black active:border-b-0 active:translate-y-1"
-                 >
-                   <span className="mr-2 text-lg">📄</span> Download Detailed PDF
-                 </button>
-               </div>
+                >
+                  <span className="mr-2 text-lg">📄</span> Download Detailed PDF
+                </button>
+              </div>
             </div>
           </div>
 
@@ -396,8 +381,8 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
                     <div className="opacity-50 text-[8px]">({waiverPercent}% Waiver Applied)</div>
                   </th>
                   <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest border-r border-white/10 text-center">
-                     <div>Assessments</div>
-                     <div className="opacity-50 text-[8px]">(Annual Total)</div>
+                    <div>Assessments</div>
+                    <div className="opacity-50 text-[8px]">(Annual Total)</div>
                   </th>
                   <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest border-r border-white/10 text-center bg-amber-600 text-white">
                     Grand Total
@@ -416,7 +401,7 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
                         {group.title}
                       </td>
                     </tr>
-                    
+
                     {group.classes.map((cls) => {
                       const annualTuitionRaw = cls.tuition * 12;
                       const discountAmount = annualTuitionRaw * (waiverPercent / 100);
@@ -442,7 +427,7 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
                           <td className="px-6 py-5 border-r border-slate-100 align-top">
                             <div className="flex justify-between items-center">
                               <div className="font-bold text-red-950 text-base mt-2">{cls.name}</div>
-                              <button 
+                              <button
                                 onClick={() => handlePrintSingle(cls, grandTotal, activeMiscCost, miscItems)}
                                 className="no-print p-2 rounded-full hover:bg-red-50 text-slate-400 hover:text-red-900 transition-colors"
                                 title={`Download ${cls.name} Estimator`}
@@ -451,7 +436,7 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
                               </button>
                             </div>
                           </td>
-                          
+
                           <td className="px-6 py-5 text-center border-r border-slate-100 bg-slate-50/50 align-top">
                             <span className="font-bold text-slate-700 mt-2 block">₹{cls.tuition.toLocaleString()}</span>
                           </td>
@@ -483,35 +468,35 @@ const Academics: React.FC<AcademicsProps> = ({ feeStructure = CLASS_FEE_STRUCTUR
                           </td>
 
                           <td className="px-6 py-4 text-left">
-                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                {miscItems.map((item) => (
-                                  <label key={item.key} className="flex items-center space-x-2 cursor-pointer group select-none">
-                                    <div className="relative no-print">
-                                      <input 
-                                        type="checkbox" 
-                                        className="peer sr-only"
-                                        checked={isSelected(cls.name, item.key)}
-                                        onChange={() => toggleItem(cls.name, item.key)}
-                                      />
-                                      <div className="w-4 h-4 border-2 border-slate-300 rounded bg-white peer-checked:bg-amber-600 peer-checked:border-amber-600 transition-all"></div>
-                                      <svg className="w-3 h-3 text-white absolute top-0.5 left-0.5 opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span className="text-[10px] font-bold text-slate-700 group-hover:text-red-900 transition-colors">
-                                        <span className="print:hidden">{item.label}</span>
-                                        <span className="hidden print:inline text-[9px] font-bold">
-                                           {isSelected(cls.name, item.key) ? `• ${item.label}` : ''}
-                                        </span>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                              {miscItems.map((item) => (
+                                <label key={item.key} className="flex items-center space-x-2 cursor-pointer group select-none">
+                                  <div className="relative no-print">
+                                    <input
+                                      type="checkbox"
+                                      className="peer sr-only"
+                                      checked={isSelected(cls.name, item.key)}
+                                      onChange={() => toggleItem(cls.name, item.key)}
+                                    />
+                                    <div className="w-4 h-4 border-2 border-slate-300 rounded bg-white peer-checked:bg-amber-600 peer-checked:border-amber-600 transition-all"></div>
+                                    <svg className="w-3 h-3 text-white absolute top-0.5 left-0.5 opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-slate-700 group-hover:text-red-900 transition-colors">
+                                      <span className="print:hidden">{item.label}</span>
+                                      <span className="hidden print:inline text-[9px] font-bold">
+                                        {isSelected(cls.name, item.key) ? `• ${item.label}` : ''}
                                       </span>
-                                      <span className="text-[9px] text-slate-500 font-bold">₹{item.cost}</span>
-                                    </div>
-                                  </label>
-                                ))}
-                             </div>
-                             <div className="mt-3 pt-2 border-t border-slate-100 text-right print:hidden">
-                               <span className="text-[10px] text-slate-500 mr-2 font-black uppercase">Misc Total:</span>
-                               <span className="text-xs font-bold text-amber-700">₹{activeMiscCost.toLocaleString()}</span>
-                             </div>
+                                    </span>
+                                    <span className="text-[9px] text-slate-500 font-bold">₹{item.cost}</span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="mt-3 pt-2 border-t border-slate-100 text-right print:hidden">
+                              <span className="text-[10px] text-slate-500 mr-2 font-black uppercase">Misc Total:</span>
+                              <span className="text-xs font-bold text-amber-700">₹{activeMiscCost.toLocaleString()}</span>
+                            </div>
                           </td>
                         </tr>
                       );

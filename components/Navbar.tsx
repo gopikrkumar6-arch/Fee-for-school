@@ -14,10 +14,10 @@ interface NavbarProps {
   onToggleHistory?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ 
-  currentPage, 
-  onPageChange, 
-  isAuthenticated, 
+const Navbar: React.FC<NavbarProps> = ({
+  currentPage,
+  onPageChange,
+  isAuthenticated,
   onLogout,
   currentSession,
   availableSessions,
@@ -34,7 +34,7 @@ const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-24">
           <div className="flex items-center">
-            <div 
+            <div
               className="flex-shrink-0 flex items-center cursor-pointer group"
               onClick={() => onPageChange(Page.Home)}
             >
@@ -51,25 +51,24 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
           </div>
-          
+
           <div className="hidden md:flex items-center space-x-1">
             {visibleLinks.map((link) => (
               <button
                 key={link.path}
                 onClick={() => onPageChange(link.path)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${
-                  currentPage === link.path 
-                    ? 'text-red-900 bg-red-50/50' 
-                    : 'text-slate-600 hover:text-red-900 hover:bg-slate-50'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 ${currentPage === link.path
+                  ? 'text-red-900 bg-red-50/50'
+                  : 'text-slate-600 hover:text-red-900 hover:bg-slate-50'
+                  }`}
               >
                 {link.name}
               </button>
             ))}
-            
+
             <div className="h-8 w-px bg-slate-200 mx-4"></div>
 
-            <button 
+            <button
               onClick={() => onPageChange(Page.Admissions)}
               className="bg-red-900 text-white px-6 py-2.5 rounded-full text-xs font-black hover:bg-red-800 transition-all shadow-xl active:scale-95 border-b-2 border-amber-800 uppercase tracking-widest mr-4"
             >
@@ -77,66 +76,61 @@ const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {isAuthenticated ? (
-               <div className="flex items-center gap-3">
-                 
-                 {/* New Global History Trigger */}
-                 <button 
-                    onClick={onToggleHistory}
-                    className="p-2.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-900 hover:text-white transition-all border border-slate-200 shadow-sm relative group"
-                    title="Global Payment History"
-                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white animate-pulse"></span>
-                 </button>
+              <div className="flex items-center gap-3">
 
-                 <div className="relative">
-                    <button 
-                      onClick={() => setSessionMenuOpen(!sessionMenuOpen)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm transition-all text-[10px] font-black uppercase tracking-widest ${
-                        currentSession === '2025-26' 
-                          ? 'bg-slate-100 border-slate-300 text-slate-500' 
-                          : 'bg-amber-50 border-amber-300 text-amber-800'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                      <span>Session {currentSession}</span>
-                    </button>
-                    
-                    {sessionMenuOpen && (
-                      <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden py-2 z-[70] animate-in fade-in slide-in-from-top-2">
-                        <p className="px-4 py-2 text-[9px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 mb-1">Select Active Ledger</p>
-                        {availableSessions.map(session => (
-                          <button
-                            key={session}
-                            onClick={() => {
-                              onSessionChange(session);
-                              setSessionMenuOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-3 text-xs font-bold flex justify-between items-center hover:bg-slate-50 transition-colors ${
-                              currentSession === session ? 'text-red-900 bg-red-50' : 'text-slate-600'
+                {/* New Global History Trigger */}
+                <button
+                  onClick={onToggleHistory}
+                  className="p-2.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-900 hover:text-white transition-all border border-slate-200 shadow-sm relative group"
+                  title="Global Payment History"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white animate-pulse"></span>
+                </button>
+
+                <div className="relative">
+                  <button
+                    onClick={() => setSessionMenuOpen(!sessionMenuOpen)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-red-100 bg-red-50/50 text-red-900 shadow-sm transition-all text-[10px] font-black uppercase tracking-widest hover:border-red-200"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-red-900"></span>
+                    <span>Session {currentSession}</span>
+                  </button>
+
+                  {sessionMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden py-2 z-[70] animate-in fade-in slide-in-from-top-2">
+                      <p className="px-4 py-2 text-[9px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 mb-1">Select Academic Session</p>
+                      {availableSessions.map(session => (
+                        <button
+                          key={session}
+                          onClick={() => {
+                            onSessionChange(session);
+                            setSessionMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-xs font-bold flex justify-between items-center hover:bg-slate-50 transition-colors ${currentSession === session ? 'text-red-900 bg-red-50' : 'text-slate-600'
                             }`}
-                          >
-                            <span>Session {session}</span>
-                            {currentSession === session && <span className="w-4 h-4 rounded-full bg-red-900 text-white flex items-center justify-center text-[8px]">✓</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {sessionMenuOpen && (
-                      <div className="fixed inset-0 z-60" onClick={() => setSessionMenuOpen(false)}></div>
-                    )}
-                 </div>
+                        >
+                          <span>Session {session}</span>
+                          {currentSession === session && <span className="w-4 h-4 rounded-full bg-red-900 text-white flex items-center justify-center text-[8px]">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {sessionMenuOpen && (
+                    <div className="fixed inset-0 z-60" onClick={() => setSessionMenuOpen(false)}></div>
+                  )}
+                </div>
 
-                 <button 
-                   onClick={onLogout}
-                   className="text-red-900 hover:bg-red-50 p-2.5 rounded-full transition-all border border-red-100 shadow-sm"
-                   title="Logout"
-                 >
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                 </button>
-               </div>
+                <button
+                  onClick={onLogout}
+                  className="text-red-900 hover:bg-red-50 p-2.5 rounded-full transition-all border border-red-100 shadow-sm"
+                  title="Logout"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+              </div>
             ) : (
-              <button 
+              <button
                 onClick={() => onPageChange(Page.Login)}
                 className="group flex items-center px-4 py-2 text-slate-500 hover:text-red-900 transition-all text-xs font-black uppercase tracking-widest"
               >
@@ -148,7 +142,7 @@ const Navbar: React.FC<NavbarProps> = ({
 
           <div className="md:hidden flex items-center gap-2">
             {isAuthenticated && (
-              <button 
+              <button
                 onClick={onToggleHistory}
                 className="p-3 rounded-xl bg-slate-100 text-slate-600 border border-slate-200"
               >
@@ -177,58 +171,56 @@ const Navbar: React.FC<NavbarProps> = ({
                   onPageChange(link.path);
                   setIsOpen(false);
                 }}
-                className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-bold ${
-                  currentPage === link.path 
-                    ? 'bg-red-50 text-red-900' 
-                    : 'text-slate-600 active:bg-slate-50'
-                }`}
+                className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-bold ${currentPage === link.path
+                  ? 'bg-red-50 text-red-900'
+                  : 'text-slate-600 active:bg-slate-50'
+                  }`}
               >
                 {link.name}
               </button>
             ))}
-            
+
             {isAuthenticated && (
               <div className="pt-4 border-t border-slate-100">
                 <p className="px-4 text-[9px] font-black uppercase text-slate-400 tracking-widest mb-3">Active Session</p>
                 {availableSessions.map(session => (
-                   <button
+                  <button
                     key={session}
                     onClick={() => {
                       onSessionChange(session);
                       setIsOpen(false);
                     }}
-                    className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-bold ${
-                      currentSession === session ? 'text-amber-700 bg-amber-50' : 'text-slate-50'
-                    }`}
-                   >
-                     FY {session} {currentSession === session && '✓'}
-                   </button>
+                    className={`block w-full text-left px-4 py-3 rounded-xl text-sm font-bold ${currentSession === session ? 'text-red-900 bg-red-50' : 'text-slate-600 active:bg-slate-50'
+                      }`}
+                  >
+                    Session {session} {currentSession === session && '✓'}
+                  </button>
                 ))}
               </div>
             )}
 
             <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
-                {!isAuthenticated ? (
+              {!isAuthenticated ? (
                 <button
-                    onClick={() => { onPageChange(Page.Login); setIsOpen(false); }}
-                    className="w-full py-3 rounded-xl text-sm font-black uppercase bg-slate-100 text-slate-600"
+                  onClick={() => { onPageChange(Page.Login); setIsOpen(false); }}
+                  className="w-full py-3 rounded-xl text-sm font-black uppercase bg-slate-100 text-slate-600"
                 >
-                    Portal
+                  Portal
                 </button>
-                ) : (
+              ) : (
                 <button
-                    onClick={() => { onLogout(); setIsOpen(false); }}
-                    className="w-full py-3 rounded-xl text-sm font-black uppercase bg-red-50 text-red-600"
+                  onClick={() => { onLogout(); setIsOpen(false); }}
+                  className="w-full py-3 rounded-xl text-sm font-black uppercase bg-red-50 text-red-600"
                 >
-                    Logout
+                  Logout
                 </button>
-                )}
-                <button
-                    onClick={() => { onPageChange(Page.Admissions); setIsOpen(false); }}
-                    className="w-full py-3 rounded-xl text-sm font-black uppercase bg-red-900 text-white"
-                >
-                    Apply
-                </button>
+              )}
+              <button
+                onClick={() => { onPageChange(Page.Admissions); setIsOpen(false); }}
+                className="w-full py-3 rounded-xl text-sm font-black uppercase bg-red-900 text-white"
+              >
+                Apply
+              </button>
             </div>
           </div>
         </div>

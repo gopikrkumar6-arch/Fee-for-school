@@ -21,6 +21,7 @@ export const NAV_LINKS = [
   { name: 'Accounts', path: Page.Hisab, restricted: true },
   { name: 'Fee Schedule', path: Page.Academics, restricted: false },
   { name: 'Settings', path: Page.Settings, restricted: true },
+  { name: 'Alumni Archives', path: Page.Alumni, restricted: true },
 ];
 
 export const BRANCH_OPTIONS = ['1', '2', '3', '4', '5'];
@@ -89,9 +90,9 @@ export const getFeeConfig = (grade: string) => {
     const cls = cat.classes.find(c => c.name === grade);
     if (cls) return cls;
   }
-  return { 
+  return {
     name: 'Standard',
-    tuition: 8500, 
+    tuition: 8500,
     onTimeReward: 600,
     exam: 2500,
     tie: 250,
