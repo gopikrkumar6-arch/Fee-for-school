@@ -12,7 +12,6 @@ export enum Page {
   Login = 'login',
   Settings = 'settings',
   Hisab = 'hisab',
-  Alumni = 'alumni',
   ReceiptManager = 'receipt-manager',
   Reminders = 'reminders'
 }
@@ -138,7 +137,7 @@ export type AcademicStatus = 'Active' | 'Inactive' | 'Dropped' | 'Promoted' | 'T
 
 export interface FeeRecord {
   id: string;
-  academicSession: string; 
+  academicSession: string;
   academicStatus?: AcademicStatus;
   statusMetadata?: {
     leaveFrom?: string;
@@ -149,30 +148,30 @@ export interface FeeRecord {
     oldClass?: string;
     oldRoll?: string;
   };
-  admissionNo?: string; 
-  uidNo?: string; 
+  admissionNo?: string;
+  uidNo?: string;
   rollNo: string;
   studentName: string;
   grade: string;
   section: string;
-  schoolBranch?: string; 
+  schoolBranch?: string;
   motherName: string;
   fatherName: string;
   mobileNumber?: string;
-  whatsappNumber?: string; 
-  penNo?: string; 
-  apaarId?: string; 
-  aadharCard?: string; 
-  address?: string; 
-  dob?: string; 
-  previousClass?: string; 
-  previousRollNo?: string; 
-  previousBranch?: string; 
-  siblings?: string[]; 
-  excludedSiblings?: string[]; 
-  monthlyFee: number; 
-  cashDiscount: number; 
-  discountStartMonth?: string; 
+  whatsappNumber?: string;
+  penNo?: string;
+  apaarId?: string;
+  aadharCard?: string;
+  address?: string;
+  dob?: string;
+  previousClass?: string;
+  previousRollNo?: string;
+  previousBranch?: string;
+  siblings?: string[];
+  excludedSiblings?: string[];
+  monthlyFee: number;
+  cashDiscount: number;
+  discountStartMonth?: string;
   totalAnnualFee: number;
   paidAmount: number;
   dueDate: string;
@@ -180,9 +179,9 @@ export interface FeeRecord {
   category: 'Tuition' | 'Transport' | 'Development' | 'Library';
   arrearsMarch2025: number;
   monthlyStatus: MonthlyStatus;
-  examFeeStatus: ExamFeeStatus; 
+  examFeeStatus: ExamFeeStatus;
   history: Transaction[];
-  complaints?: Complaint[]; 
+  complaints?: Complaint[];
   photo?: string;
 }
 

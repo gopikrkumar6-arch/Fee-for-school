@@ -17,7 +17,7 @@ import Login from './pages/Login';
 import Contact from './pages/Contact';
 import ReceiptManager from './pages/ReceiptManager';
 import DueReminders from './pages/DueReminders';
-import Alumni from './pages/Alumni';
+
 import { Page, FeeRecord, FeeCategory, Expense, ActionLog, BranchCollection, DueReminder, ReminderHistory, ReceiptBook, CancelledReceipt } from './types';
 import { MOCK_FEES, CLASS_FEE_STRUCTURE } from './constants';
 import { useAuth } from './src/hooks/useAuth';
@@ -703,16 +703,7 @@ const App: React.FC = () => {
             onSelectStudent={handleStudentSelect}
           />
         );
-      case Page.Alumni:
-        return (
-          <Alumni
-            students={students}
-            currentSession={currentSession}
-            onUpdateStudents={handleUpdateStudents}
-            isReadOnly={isReadOnly}
-            availableSessions={availableSessions}
-          />
-        );
+
       case Page.Login:
         return <Login onLogin={handleLogin} availableSessions={availableSessions} />;
       default:

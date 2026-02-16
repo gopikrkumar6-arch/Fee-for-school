@@ -21,7 +21,6 @@ export const NAV_LINKS = [
   { name: 'Accounts', path: Page.Hisab, restricted: true },
   { name: 'Fee Schedule', path: Page.Academics, restricted: false },
   { name: 'Settings', path: Page.Settings, restricted: true },
-  { name: 'Alumni Archives', path: Page.Alumni, restricted: true },
 ];
 
 export const BRANCH_OPTIONS = ['1', '2', '3', '4', '5'];
