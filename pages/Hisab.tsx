@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FeeRecord, Expense, Transaction, BranchCollection } from '../types';
 import { SCHOOL_INFO, formatDate, CLASS_FEE_STRUCTURE } from '../constants';
+import printService from '../services/printService';
 
 interface HisabProps {
     students: FeeRecord[];
@@ -363,7 +364,7 @@ const Hisab: React.FC<HisabProps> = ({
         return '';
     };
 
-    const handlePrint = () => window.print();
+    const handlePrint = () => printService.safePrint();
 
     const sortedClassDues = useMemo(() => {
         return (Object.entries(analytics.classAnalytics) as [string, any][]).sort((a, b) => b[1].due - a[1].due);

@@ -66,15 +66,6 @@ const Navbar: React.FC<NavbarProps> = ({
               </button>
             ))}
 
-            <div className="h-8 w-px bg-slate-200 mx-4"></div>
-
-            <button
-              onClick={() => onPageChange(Page.Admissions)}
-              className="bg-red-900 text-white px-6 py-2.5 rounded-full text-xs font-black hover:bg-red-800 transition-all shadow-xl active:scale-95 border-b-2 border-amber-800 uppercase tracking-widest mr-4"
-            >
-              Apply Now
-            </button>
-
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
 
@@ -199,7 +190,7 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <div className="pt-4 border-t border-slate-100">
               {!isAuthenticated ? (
                 <button
                   onClick={() => { onPageChange(Page.Login); setIsOpen(false); }}
@@ -215,12 +206,6 @@ const Navbar: React.FC<NavbarProps> = ({
                   Logout
                 </button>
               )}
-              <button
-                onClick={() => { onPageChange(Page.Admissions); setIsOpen(false); }}
-                className="w-full py-3 rounded-xl text-sm font-black uppercase bg-red-900 text-white"
-              >
-                Apply
-              </button>
             </div>
           </div>
         </div>

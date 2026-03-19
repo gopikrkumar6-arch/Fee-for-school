@@ -125,6 +125,10 @@ const App: React.FC = () => {
 
   // Payment Account States
   const [upiAccounts, setUpiAccounts] = useState<string[]>(["Director Sir", "Office Primary", "Gopi Nand"]);
+  const [upiQrCodes, setUpiQrCodes] = useState<{ [key: string]: string }>(() => {
+    const saved = localStorage.getItem('ues_upi_qr_codes');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [bankAccounts, setBankAccounts] = useState<string[]>(["State Bank of India", "HDFC Bank", "Punjab National Bank"]);
   const [lockedSessions, setLockedSessions] = useState<string[]>([]);
 
@@ -152,7 +156,7 @@ const App: React.FC = () => {
       const savedLockedSessions = localStorage.getItem('ues_locked_sessions');
 
       if (savedStudents) setStudents(JSON.parse(savedStudents));
-      else setStudents(MOCK_FEES);
+      else setStudents([]);
 
       if (savedLogs) setActionLogs(JSON.parse(savedLogs));
       if (savedExpenses) setExpenses(JSON.parse(savedExpenses));
@@ -605,6 +609,7 @@ const App: React.FC = () => {
             setUpiAccounts={setUpiAccounts}
             bankAccounts={bankAccounts}
             setBankAccounts={setBankAccounts}
+            upiQrCodes={upiQrCodes}
           />
         );
       case Page.CounterEntry:
@@ -635,6 +640,7 @@ const App: React.FC = () => {
             persistentAuditOpen={isReceiptAuditOpen}
             setPersistentAuditOpen={setIsReceiptAuditOpen}
             branchCollections={branchCollections}
+            feeStructure={feeStructures[currentSession] || CLASS_FEE_STRUCTURE}
             onUpdateStudents={handleUpdateStudents}
             currentSession={currentSession}
             isReadOnly={isReadOnly}

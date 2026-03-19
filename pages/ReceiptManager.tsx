@@ -24,6 +24,7 @@ interface ReceiptManagerProps {
   setBooks: (books: ReceiptBook[]) => void;
   cancelledReceipts: CancelledReceipt[];
   setCancelledReceipts: (receipts: CancelledReceipt[]) => void;
+  feeStructure?: any[];
 }
 
 const ReceiptManager: React.FC<ReceiptManagerProps> = ({
@@ -42,7 +43,8 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
   books,
   setBooks,
   cancelledReceipts,
-  setCancelledReceipts
+  setCancelledReceipts,
+  feeStructure = []
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'receipts' | 'demands'>('receipts');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -565,6 +567,7 @@ const ReceiptManager: React.FC<ReceiptManagerProps> = ({
             onUpdateStudents={onUpdateStudents}
             currentSession={currentSession}
             isReadOnly={isReadOnly}
+            feeStructure={feeStructure}
           />
         </div>
       )}

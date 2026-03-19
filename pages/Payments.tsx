@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PaymentMode, FeeRecord, Transaction } from '../types';
 import { formatDate, getFeeConfig } from '../constants';
+import printService from '../services/printService';
 
 const SESSION_MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 const EXAM_TERMS = ['Term 1', 'Term 2', 'Term 3'] as const;
@@ -12,9 +13,11 @@ interface PaymentsProps {
   currentSession: string;
   isReadOnly?: boolean;
   initialStudentId?: string;
+  upiAccounts?: string[];
+  upiQrCodes?: { [key: string]: string };
 }
 
-const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, currentSession, isReadOnly = false, initialStudentId }) => {
+const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, currentSession, isReadOnly = false, initialStudentId, upiAccounts = [], upiQrCodes = {} }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [studentId, setStudentId] = useState(initialStudentId || '');
@@ -25,6 +28,7 @@ const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, current
   const [additionalDiscount, setAdditionalDiscount] = useState('');
   const [waiverPercentage, setWaiverPercentage] = useState<string>('15'); 
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('UPI');
+  const [selectedUpiIndex, setSelectedUpiIndex] = useState<number>(0);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
   
   const [miscSelection, setMiscSelection] = useState({
@@ -369,7 +373,7 @@ const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, current
   };
 
   const printReceipt = () => {
-    window.print();
+    printService.safePrint();
   };
 
   const isDropped = activeStudent?.academicStatus === 'Dropped';
@@ -687,7 +691,12 @@ const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, current
                       <button 
                         key={m}
                         type="button"
-                        onClick={() => setPaymentMode(m as any)}
+                        onClick={() => {
+                          setPaymentMode(m as any);
+                          if (m === 'UPI' && upiAccounts.length > 0) {
+                            setSelectedUpiIndex(0);
+                          }
+                        }}
                         className={`flex items-center px-6 py-4 rounded-2xl border-2 transition-all ${
                           paymentMode === m ? 'border-amber-600 bg-amber-50 text-amber-900 shadow-lg' : 'border-slate-100 bg-white text-slate-400'
                         }`}
@@ -698,6 +707,63 @@ const Payments: React.FC<PaymentsProps> = ({ students, onUpdateStudents, current
                     ))}
                   </div>
                 </div>
+
+                {paymentMode === 'UPI' && upiAccounts.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 space-y-4">
+                    <label className="block text-xs font-black uppercase text-slate-400 tracking-widest">Select UPI Account</label>
+                    <div className="grid grid-cols-1 gap-3">
+                      {upiAccounts.map((upi, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSelectedUpiIndex(idx)}
+                          className={`p-3 rounded-xl border-2 transition-all text-left ${
+                            selectedUpiIndex === idx
+                              ? 'border-blue-600 bg-white shadow-md'
+                              : 'border-blue-200 bg-white hover:border-blue-400'
+                          }`}
+                        >
+                          <p className="text-sm font-bold text-blue-950">{upi}</p>
+                          {upiQrCodes[idx.toString()] && (
+                            <p className="text-[10px] text-green-600 font-bold mt-1">✓ QR Code Available</p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+
+                    {upiQrCodes[selectedUpiIndex.toString()] && (
+                      <div className="mt-6 p-4 bg-white rounded-xl border-2 border-green-200 space-y-4">
+                        <div className="flex flex-col items-center gap-3">
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Scan to Pay</p>
+                          <div className="w-full max-w-[180px] bg-white border-2 border-green-300 rounded-lg p-2">
+                            <img 
+                              src={upiQrCodes[selectedUpiIndex.toString()]} 
+                              alt={`QR Code for ${upiAccounts[selectedUpiIndex]}`} 
+                              className="w-full h-auto"
+                            />
+                          </div>
+                          <div className="text-center space-y-2 w-full">
+                            <p className="text-[10px] text-slate-600 font-bold">Amount to Pay</p>
+                            <p className="text-3xl font-black text-green-700">₹{calculateTotal().toLocaleString()}</p>
+                            <p className="text-[9px] text-slate-500">To: {upiAccounts[selectedUpiIndex]}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!upiQrCodes[selectedUpiIndex.toString()] && (
+                      <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                        <p className="text-[10px] text-amber-800 font-bold">⚠️ No QR code uploaded for this UPI account. Please ask admin to upload it.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {paymentMode === 'UPI' && upiAccounts.length === 0 && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-[10px] text-red-800 font-bold">❌ No UPI accounts configured. Please contact admin.</p>
+                  </div>
+                )}
 
                 <button 
                   type="submit" 

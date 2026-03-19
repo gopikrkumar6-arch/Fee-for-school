@@ -47,6 +47,8 @@ const Settings: React.FC<SettingsProps> = ({
   const [activeTab, setActiveTab] = useState<'students' | 'fees' | 'import' | 'system'>('students');
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonImportInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingJSON, setIsImportingJSON] = useState(false);
 
   const availableClassNames = useMemo(() => {
     return feeStructure.flatMap(cat => cat.classes.map(cls => cls.name));
@@ -94,6 +96,27 @@ const Settings: React.FC<SettingsProps> = ({
   const [newSessionInput, setNewSessionInput] = useState('');
   const [promoFromSession, setPromoFromSession] = useState('');
   const [promoToSession, setPromoToSession] = useState('');
+
+  const [upiQrCodes, setUpiQrCodes] = useState<{ [key: string]: string }>(() => {
+    const saved = localStorage.getItem('ues_upi_qr_codes');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const qrFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedQrUpiIndex, setSelectedQrUpiIndex] = useState<number | null>(null);
+
+  const handleQrUpload = (e: React.ChangeEvent<HTMLInputElement>, upiIndex: number) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const updated = { ...upiQrCodes, [upiIndex.toString()]: reader.result as string };
+        setUpiQrCodes(updated);
+        localStorage.setItem('ues_upi_qr_codes', JSON.stringify(updated));
+        if (addLog) addLog('UPI QR Code Updated', `QR code uploaded for UPI account ${upiIndex + 1}`, 'SYSTEM');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const findExistingSessions = (
     name: string,
@@ -144,6 +167,14 @@ const Settings: React.FC<SettingsProps> = ({
     return cls;
   };
 
+  const getNextSession = (currentSession: string): string => {
+    const parts = currentSession.split('-');
+    if (parts.length !== 2) return '';
+    const fromYear = parseInt(parts[0]);
+    const toYear = parseInt(`20${parts[1]}`);
+    return `${toYear}-${(toYear + 1).toString().slice(-2)}`;
+  };
+
   const findClassFeeMetadata = (grade: string, structure: FeeCategory[]): ClassFeeMetadata | undefined => {
     const normalizedGrade = grade.toLowerCase().replace(/\s+/g, '');
     for (const cat of structure) {
@@ -151,6 +182,170 @@ const Settings: React.FC<SettingsProps> = ({
       if (matched) return matched;
     }
     return undefined;
+  };
+
+  const handleDownloadAsJSON = () => {
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      currentSession,
+      availableSessions,
+      students,
+      feeStructure,
+      lockedSessions,
+      upiAccounts,
+      bankAccounts
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `school-data-${currentSession}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadAsCSV = () => {
+    const headers = ['Student Name', 'Grade', 'Section', 'Roll No', 'Father Name', 'Mobile', 'Monthly Fee', 'Paid Amount', 'Status', 'Session'];
+    const csvContent = [
+      headers.join(','),
+      ...students.map(s => [
+        `"${s.studentName || ''}"`,
+        `"${s.grade || ''}"`,
+        `"${s.section || ''}"`,
+        s.rollNo || '',
+        `"${s.fatherName || ''}"`,
+        s.mobileNumber || '',
+        s.monthlyFee || '0',
+        s.paidAmount || '0',
+        s.status || 'Pending',
+        s.academicSession || ''
+      ].join(','))
+    ].join('\n');
+    
+    const dataBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `school-data-${currentSession}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleShareViaText = async () => {
+    const summary = {
+      session: currentSession,
+      totalStudents: students.filter(s => s.academicSession === currentSession).length,
+      totalFeeCollected: students.filter(s => s.academicSession === currentSession).reduce((sum, s) => sum + (s.paidAmount || 0), 0),
+      exportDate: new Date().toLocaleDateString('en-IN'),
+      exportTime: new Date().toLocaleTimeString('en-IN')
+    };
+
+    const shareText = `📊 School Fee Manager Data Export\n\nSession: ${summary.session}\nTotal Students: ${summary.totalStudents}\nTotal Collection: ₹${summary.totalFeeCollected}\n\nExported on: ${summary.exportDate} at ${summary.exportTime}\n\nFull data available in JSON/CSV formats in System Control settings.`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'School Data Export',
+          text: shareText
+        });
+      } catch (err) {
+        console.log('Share cancelled or failed');
+      }
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(shareText).then(() => {
+        alert('Summary copied to clipboard!');
+      }).catch(() => {
+        alert(shareText);
+      });
+    }
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const jsonData = JSON.parse(event.target?.result as string);
+        
+        // Validate the JSON structure
+        if (!jsonData.students || !Array.isArray(jsonData.students)) {
+          alert('❌ Invalid JSON file! Missing "students" array.');
+          return;
+        }
+
+        const importSummary = `
+📋 Import Data Summary:
+
+Sessions: ${jsonData.availableSessions?.length || 0} found
+Students: ${jsonData.students?.length || 0} records
+Fee Categories: ${jsonData.feeStructure?.length || 0}
+UPI Accounts: ${jsonData.upiAccounts?.length || 0}
+Bank Accounts: ${jsonData.bankAccounts?.length || 0}
+Locked Sessions: ${jsonData.lockedSessions?.length || 0}
+
+⚠️ WARNING: This will REPLACE all current data!
+Current Data:
+- ${students.length} students
+- ${availableSessions.length} sessions
+
+Do you want to proceed with the import?
+`;
+
+        if (window.confirm(importSummary)) {
+          setIsImportingJSON(true);
+          
+          // Apply all imported data
+          if (jsonData.students && Array.isArray(jsonData.students)) {
+            onUpdateStudents(jsonData.students);
+          }
+          
+          if (jsonData.feeStructure && Array.isArray(jsonData.feeStructure)) {
+            onUpdateFees(jsonData.feeStructure, jsonData.currentSession || currentSession);
+          }
+          
+          if (jsonData.availableSessions && Array.isArray(jsonData.availableSessions)) {
+            setAvailableSessions(jsonData.availableSessions);
+          }
+          
+          if (jsonData.upiAccounts && Array.isArray(jsonData.upiAccounts)) {
+            setUpiAccounts(jsonData.upiAccounts);
+          }
+          
+          if (jsonData.bankAccounts && Array.isArray(jsonData.bankAccounts)) {
+            setBankAccounts(jsonData.bankAccounts);
+          }
+          
+          if (jsonData.lockedSessions && Array.isArray(jsonData.lockedSessions)) {
+            setLockedSessions(jsonData.lockedSessions);
+            localStorage.setItem('ues_locked_sessions', JSON.stringify(jsonData.lockedSessions));
+          }
+
+          setTimeout(() => {
+            setIsImportingJSON(false);
+            alert('✅ Data imported successfully! All information has been restored.');
+            if (addLog) addLog('Data Import', `Imported ${jsonData.students?.length || 0} student records from JSON file`, 'SYSTEM');
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('JSON Parse Error:', error);
+        alert('❌ Error parsing JSON file! Please ensure it\'s a valid JSON export file.');
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset input so same file can be selected again
+    if (jsonImportInputRef.current) {
+      jsonImportInputRef.current.value = '';
+    }
   };
 
   const handlePromotion = () => {
@@ -165,48 +360,59 @@ const Settings: React.FC<SettingsProps> = ({
         return;
       }
 
+      // Validate that nextSession is EXACTLY the next session (no skipping)
+      const expectedNextSession = getNextSession(prevSession);
+      if (nextSession !== expectedNextSession) {
+        alert(`❌ Invalid session sequence!\n\nFrom session ${prevSession} must promote to ${expectedNextSession}, not ${nextSession}.\n\n⚠️ Session skipping is NOT allowed.`);
+        setIsPromoting(false);
+        return;
+      }
+
       if (lockedSessions.includes(nextSession)) {
         alert(`Destination session ${nextSession} is locked (Read-Only). Promotion is not allowed.`);
         setIsPromoting(false);
         return;
       }
 
-      const targetFeeStructure = getFeeStructureForSession(nextSession);
-      const eligibleStudents = students.filter(s => s.academicSession === prevSession && s.status !== 'PASSED');
+      const allSessionStudents = students.filter(s => s.academicSession === prevSession && s.status !== 'PASSED');
 
-      if (eligibleStudents.length === 0) {
-        alert(`No students found in Session ${prevSession} to promote.`);
+      if (allSessionStudents.length === 0) {
+        alert(`No students found in Session ${prevSession} to process.`);
         setIsPromoting(false);
         return;
       }
 
-      const promotedStudents: FeeRecord[] = eligibleStudents.map(student => {
-        const nextClass = getNextClass(student.grade);
-        const isPassed = nextClass === 'PASSED';
+      // Separate students into two groups:
+      // 1. Class 1-9: Promote to next class in next session
+      // 2. Class 10: Graduate (mark PASSED) in current session - NO new record created
+      const promoteToNextSession = allSessionStudents.filter(s => {
+        const nextClass = getNextClass(s.grade);
+        return nextClass !== 'PASSED';
+      });
 
-        // Refined Pending Amount calculation:
-        // (Existing Arrears + Sum of actual history debits) - total amount paid
+      const graduatingClass10 = allSessionStudents.filter(s => {
+        const nextClass = getNextClass(s.grade);
+        return nextClass === 'PASSED';
+      });
+
+      const targetFeeStructure = getFeeStructureForSession(nextSession);
+
+      // Process students promoting to next class/session
+      const promotedStudents: FeeRecord[] = promoteToNextSession.map(student => {
+        const nextClass = getNextClass(student.grade);
         const existingArrears = student.arrearsMarch2025 || 0;
         const totalHistoryDebits = student.history
           .filter(t => t.type === 'Debit' && !t.description.includes('Charge Generated for Exemption'))
           .reduce((sum, t) => sum + t.amount, 0);
         const totalPaid = student.paidAmount || 0;
-
         const pendingAmount = Math.max(0, (existingArrears + totalHistoryDebits) - totalPaid);
 
-        let newMonthlyFee = 0;
-        if (!isPassed) {
-          const classMeta = findClassFeeMetadata(nextClass, targetFeeStructure);
-          if (classMeta) {
-            newMonthlyFee = classMeta.tuition;
-          }
-        }
+        const classMeta = findClassFeeMetadata(nextClass, targetFeeStructure);
+        const newMonthlyFee = classMeta ? classMeta.tuition : 0;
 
         const emptyStatus: MonthlyStatus = {};
         SESSION_MONTHS.forEach(m => emptyStatus[m] = 'Unpaid');
 
-        // Stable ID generation: BaseID + SessionName
-        // Strip previous promotion suffixes to prevent ID bloat
         const baseId = student.id.split('-PROM')[0];
         const newId = `${baseId}-PROM-${nextSession.replace(/[^a-zA-Z0-9]/g, '')}`;
 
@@ -215,11 +421,13 @@ const Settings: React.FC<SettingsProps> = ({
           id: newId,
           academicSession: nextSession,
           grade: nextClass,
+          previousClass: student.grade,
+          previousRollNo: student.rollNo,
           monthlyFee: newMonthlyFee,
-          cashDiscount: 0, // Reset individual discount during promotion
+          cashDiscount: 0,
           totalAnnualFee: newMonthlyFee * 12,
           paidAmount: 0,
-          status: isPassed ? 'PASSED' : 'Pending',
+          status: 'Pending',
           arrearsMarch2025: pendingAmount,
           monthlyStatus: emptyStatus,
           examFeeStatus: { 'Term 1': 'Unpaid', 'Term 2': 'Unpaid', 'Term 3': 'Unpaid' },
@@ -227,15 +435,33 @@ const Settings: React.FC<SettingsProps> = ({
         };
       });
 
-      const existingNextSessionIds = new Set(students.filter(s => s.academicSession === nextSession).map(s => s.rollNo + s.grade));
-      const newPromotions = promotedStudents.filter(s => !existingNextSessionIds.has(s.rollNo + s.grade));
+      // Process Class 10 students - mark as PASSED in current session (in-place update, no new record)
+      const passedStudents: FeeRecord[] = graduatingClass10.map(student => ({
+        ...student,
+        grade: 'PASSED',
+        previousClass: student.grade,
+        previousRollNo: student.rollNo,
+        status: 'PASSED',
+        monthlyFee: 0,
+        totalAnnualFee: 0
+        // Keep same academicSession - they graduate in their current session
+      }));
 
-      if (newPromotions.length === 0) {
-        alert("Promotion already executed for these students in the target session.");
+      // Merge: Update in-place records + new promoted records
+      const allUpdatedStudents = students.map(s => {
+        const passedVersion = passedStudents.find(p => p.id === s.id);
+        return passedVersion || s;
+      }).concat(promotedStudents);
+
+      const existingNextSessionIds = new Set(students.filter(s => s.academicSession === nextSession).map(s => s.rollNo + s.grade));
+      const validPromotions = promotedStudents.filter(s => !existingNextSessionIds.has(s.rollNo + s.grade));
+
+      if (validPromotions.length === 0 && passedStudents.length === 0) {
+        alert("No students to process. Promotion may already be executed.");
       } else {
-        if (addLog) addLog('Batch Promotion Executed', `Promoted ${newPromotions.length} students to ${nextSession}.`, 'SYSTEM');
-        onUpdateStudents([...students, ...newPromotions]);
-        alert(`Successfully promoted ${newPromotions.length} students to Session ${nextSession}.`);
+        if (addLog) addLog('Batch Promotion & Graduation', `Promoted ${validPromotions.length} to ${nextSession} & graduated ${passedStudents.length} in ${prevSession}.`, 'SYSTEM');
+        onUpdateStudents(allUpdatedStudents);
+        alert(`✅ Promoted ${validPromotions.length} students to ${nextSession}\n✅ Graduated ${passedStudents.length} Class 10 students in ${prevSession}`);
       }
       setIsPromoting(false);
     }, 1500);
@@ -252,22 +478,129 @@ const Settings: React.FC<SettingsProps> = ({
       monthlyFee, discount, arrears, photoUrl, isNewAdmission, admissionCharge
     } = newStudent;
 
-    if (!name || !grade || !section || !rollNo) return;
+    // === VALIDATION TESTS ===
+    
+    // 1. Required Fields
+    if (!name || !name.trim()) {
+      alert("❌ Student Name is required");
+      return;
+    }
+    if (!grade || !grade.trim()) {
+      alert("❌ Grade/Class is required");
+      return;
+    }
+    if (!section || !section.trim()) {
+      alert("❌ Section is required");
+      return;
+    }
+    if (!rollNo || !rollNo.trim()) {
+      alert("❌ Roll Number is required");
+      return;
+    }
 
+    // 2. Name Validation - Letters, spaces, and hyphens only
+    if (!/^[a-zA-Z\s\-']{2,}$/.test(name.trim())) {
+      alert("❌ Invalid Name!\nOnly letters, spaces, hyphens, and apostrophes allowed.\nMinimum 2 characters.");
+      return;
+    }
+
+    // 3. Roll Number Validation - Exactly 2 digits
+    if (!/^\d{2}$/.test(rollNo.trim())) {
+      alert("❌ Invalid Roll Number!\nMust be exactly 2 digits (e.g., 01, 02, ..., 99).");
+      return;
+    }
+
+    // 4. Section Validation - Letters/Numbers only, max 5 chars
+    if (!/^[a-zA-Z0-9]{1,5}$/.test(section.trim())) {
+      alert("❌ Invalid Section!\nUse letters/numbers only (A, B, C, 1, 2, etc).\nMax 5 characters.");
+      return;
+    }
+
+    // 5. Mobile Number - Exactly 10 digits
+    if (mobileNumber && !/^\d{10}$/.test(mobileNumber.replace(/\D/g, ''))) {
+      alert("❌ Invalid Mobile Number!\nMust be exactly 10 digits (e.g., 9876543210).");
+      return;
+    }
+
+    // 6. WhatsApp Number - Exactly 10 digits (if provided)
+    if (whatsappNumber && whatsappNumber.trim() && !/^\d{10}$/.test(whatsappNumber.replace(/\D/g, ''))) {
+      alert("❌ Invalid WhatsApp Number!\nMust be exactly 10 digits.");
+      return;
+    }
+
+    // 7. Aadhar Card - Exactly 12 digits (if provided)
+    if (aadharCard && aadharCard.trim()) {
+      if (!/^\d{12}$/.test(aadharCard.replace(/\D/g, ''))) {
+        alert("❌ Invalid Aadhar Number!\nMust be exactly 12 digits (e.g., 123456789012).");
+        return;
+      }
+      // Check if Aadhar already exists
+      if (students.some(s => s.aadharCard === aadharCard && s.academicSession === currentSession)) {
+        alert("⚠️ This Aadhar number is already registered in current session!");
+        return;
+      }
+    }
+
+    // 8. Father/Mother Name Validation
+    if (fatherName && !/^[a-zA-Z\s\-']{2,}$/.test(fatherName.trim())) {
+      alert("❌ Invalid Father's Name!\nOnly letters, spaces, hyphens, and apostrophes allowed.");
+      return;
+    }
+    if (motherName && !/^[a-zA-Z\s\-']{2,}$/.test(motherName.trim())) {
+      alert("❌ Invalid Mother's Name!\nOnly letters, spaces, hyphens, and apostrophes allowed.");
+      return;
+    }
+
+    // 9. DOB Validation (if provided)
+    if (dob && dob.trim()) {
+      const dobDate = new Date(dob);
+      const today = new Date();
+      if (isNaN(dobDate.getTime())) {
+        alert("❌ Invalid Date of Birth!\nUse YYYY-MM-DD format.");
+        return;
+      }
+      if (dobDate > today) {
+        alert("❌ Date of Birth cannot be in the future!");
+        return;
+      }
+    }
+
+    // 10. Address Validation (if provided)
+    if (address && address.trim().length < 5) {
+      alert("❌ Address too short!\nMinimum 5 characters required.");
+      return;
+    }
+
+    // 11. Admission Number Uniqueness
+    if (admissionNo && admissionNo.trim()) {
+      if (students.some(s => s.admissionNo === admissionNo && s.academicSession === currentSession)) {
+        alert("⚠️ Admission Number already exists in current session!");
+        return;
+      }
+    }
+
+    // 12. Previous Class/Roll validations (if both provided, both must be filled)
+    if ((previousClass || previousRollNo) && (!previousClass || !previousRollNo)) {
+      alert("❌ If entering Previous Class, you must also enter Previous Roll Number (and vice versa).");
+      return;
+    }
+
+    // === HISTORY CHECK ===
     const existingSessions = findExistingSessions(name, fatherName, motherName, mobileNumber, students);
     if (existingSessions.length > 0) {
       if (existingSessions.includes(currentSession)) {
-        alert(`Registration Blocked: "${name}" is already registered in the current session (${currentSession}).`);
+        alert(`❌ Registration Blocked: "${name}" is already registered in the current session (${currentSession}).`);
         return;
       } else {
         const confirmed = window.confirm(
-          `History Found: "${name}" was previously registered in Session(s): ${existingSessions.join(', ')}.\n\n` +
-          `Would you like to proceed with a NEW record for the current session? \n(Tip: For returning students, using the "System Control > Promotion" tool is recommended to preserve history).`
+          `⚠️ History Found: "${name}" was previously registered in Session(s): ${existingSessions.join(', ')}.\n\n` +
+          `Would you like to proceed with a NEW record for the current session? \n(Tip: For returning students, use "System Control > Promotion" to preserve history).`
         );
         if (!confirmed) return;
       }
     }
 
+    // === CREATE NEW RECORD ===
     const emptyStatus: MonthlyStatus = {};
     SESSION_MONTHS.forEach(m => emptyStatus[m] = 'Unpaid');
 
@@ -337,6 +670,8 @@ const Settings: React.FC<SettingsProps> = ({
     };
 
     onUpdateStudents([...students, newRecord]);
+    if (addLog) addLog('New Student Added', `Added ${name} (${rollNo}) to ${grade}-${section}`, 'CREATE');
+    alert(`✅ Student ${name} registered successfully!`);
     setNewStudent({
       name: '', grade: '', section: '', rollNo: '', admissionNo: '', uidNo: '', schoolBranch: '1',
       motherName: '', fatherName: '', mobileNumber: '', whatsappNumber: '', penNo: '', apaarId: '', aadharCard: '', address: '', dob: '',
@@ -677,12 +1012,13 @@ const Settings: React.FC<SettingsProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 text-right">Aadhar Card</label>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 text-right">Aadhar Card <span className="text-red-500 text-[7px]">(12 digits)</span></label>
                         <input
                           type="text"
-                          placeholder="Aadhar Number"
+                          placeholder="123456789012"
                           value={newStudent.aadharCard}
-                          onChange={(e) => setNewStudent({ ...newStudent, aadharCard: e.target.value })}
+                          onChange={(e) => setNewStudent({ ...newStudent, aadharCard: e.target.value.replace(/\D/g, '') })}
+                          maxLength="12"
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-red-900 outline-none text-xs font-bold text-right"
                         />
                       </div>
@@ -711,9 +1047,10 @@ const Settings: React.FC<SettingsProps> = ({
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Student Name *</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Student Name * <span className="text-red-500 text-[8px]">(Letters only)</span></label>
                       <input
                         type="text" required
+                        placeholder="e.g., Rajesh Kumar"
                         value={newStudent.name}
                         onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
@@ -744,11 +1081,12 @@ const Settings: React.FC<SettingsProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Sec *</label>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Sec * <span className="text-red-500 text-[8px]">(A, B, etc)</span></label>
                         <input
                           type="text" required placeholder="A"
                           value={newStudent.section}
-                          onChange={(e) => setNewStudent({ ...newStudent, section: e.target.value })}
+                          onChange={(e) => setNewStudent({ ...newStudent, section: e.target.value.toUpperCase() })}
+                          maxLength="5"
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold text-center"
                         />
                       </div>
@@ -769,30 +1107,33 @@ const Settings: React.FC<SettingsProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Roll No *</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Roll No * <span className="text-red-500 text-[8px]">(2 digits)</span></label>
                       <input
                         type="text" required placeholder="01"
                         value={newStudent.rollNo}
-                        onChange={(e) => setNewStudent({ ...newStudent, rollNo: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
+                        onChange={(e) => setNewStudent({ ...newStudent, rollNo: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                        maxLength="2"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold text-center"
                       />
                     </div>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Father's Name</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Father's Name <span className="text-amber-600 text-[8px]">(Letters only)</span></label>
                       <input
                         type="text"
+                        placeholder="e.g., Rajesh Kumar"
                         value={newStudent.fatherName}
                         onChange={(e) => setNewStudent({ ...newStudent, fatherName: e.target.value })}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Mother's Name</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Mother's Name <span className="text-amber-600 text-[8px]">(Letters only)</span></label>
                       <input
                         type="text"
+                        placeholder="e.g., Priya Singh"
                         value={newStudent.motherName}
                         onChange={(e) => setNewStudent({ ...newStudent, motherName: e.target.value })}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
@@ -802,22 +1143,24 @@ const Settings: React.FC<SettingsProps> = ({
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Mobile / Family ID</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Mobile / Family ID * <span className="text-red-500 text-[8px]">(10 digits)</span></label>
                       <input
                         type="tel"
-                        placeholder="Unique Family Identifier"
+                        placeholder="e.g., 9876543210"
                         value={newStudent.mobileNumber}
-                        onChange={(e) => setNewStudent({ ...newStudent, mobileNumber: e.target.value })}
+                        onChange={(e) => setNewStudent({ ...newStudent, mobileNumber: e.target.value.replace(/\D/g, '') })}
+                        maxLength="10"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">WhatsApp No</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">WhatsApp No <span className="text-amber-600 text-[8px]">(10 digits)</span></label>
                       <input
                         type="tel"
-                        placeholder="+91"
+                        placeholder="e.g., 9876543210"
                         value={newStudent.whatsappNumber}
-                        onChange={(e) => setNewStudent({ ...newStudent, whatsappNumber: e.target.value })}
+                        onChange={(e) => setNewStudent({ ...newStudent, whatsappNumber: e.target.value.replace(/\D/g, '') })}
+                        maxLength="10"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
                       />
                     </div>
@@ -825,12 +1168,13 @@ const Settings: React.FC<SettingsProps> = ({
 
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Student Address</label>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Student Address <span className="text-amber-600 text-[8px]">(min 5 chars)</span></label>
                       <input
                         type="text"
-                        placeholder="Full Residential Address"
+                        placeholder="Full Residential Address..."
                         value={newStudent.address}
                         onChange={(e) => setNewStudent({ ...newStudent, address: e.target.value })}
+                        minLength={5}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-900 outline-none text-sm font-bold"
                       />
                     </div>
@@ -1175,6 +1519,69 @@ const Settings: React.FC<SettingsProps> = ({
                   <p className="text-slate-400 text-xs mt-2">Manage global application access and visibility settings.</p>
                 </div>
 
+                {/* Data Export Section */}
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-8 rounded-3xl border border-cyan-200 shadow-sm space-y-6">
+                  <div>
+                    <h3 className="font-bold text-blue-950 mb-1 flex items-center gap-2">
+                      <span>📥</span> Data Export & Backup
+                    </h3>
+                    <p className="text-xs text-slate-600">Download or share all school data for backup, reporting, or records transfer.</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <button
+                      onClick={handleDownloadAsJSON}
+                      className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-cyan-200 hover:border-cyan-400 hover:shadow-md transition-all active:scale-95 group"
+                    >
+                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📋</span>
+                      <span className="text-[10px] font-black uppercase text-blue-950 text-center">Download JSON</span>
+                      <span className="text-[9px] text-slate-500 mt-1 text-center">Full data backup</span>
+                    </button>
+
+                    <button
+                      onClick={handleDownloadAsCSV}
+                      className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-cyan-200 hover:border-cyan-400 hover:shadow-md transition-all active:scale-95 group"
+                    >
+                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📊</span>
+                      <span className="text-[10px] font-black uppercase text-blue-950 text-center">Download CSV</span>
+                      <span className="text-[9px] text-slate-500 mt-1 text-center">Excel compatible</span>
+                    </button>
+
+                    <button
+                      onClick={handleShareViaText}
+                      className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-cyan-200 hover:border-cyan-400 hover:shadow-md transition-all active:scale-95 group"
+                    >
+                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">🔗</span>
+                      <span className="text-[10px] font-black uppercase text-blue-950 text-center">Share Summary</span>
+                      <span className="text-[9px] text-slate-500 mt-1 text-center">Quick summary</span>
+                    </button>
+
+                    <button
+                      onClick={() => jsonImportInputRef.current?.click()}
+                      disabled={isImportingJSON}
+                      className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-cyan-200 hover:border-cyan-400 hover:shadow-md transition-all active:scale-95 group disabled:opacity-50"
+                    >
+                      <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{isImportingJSON ? '⏳' : '📥'}</span>
+                      <span className="text-[10px] font-black uppercase text-blue-950 text-center">Import JSON</span>
+                      <span className="text-[9px] text-slate-500 mt-1 text-center">Restore backup</span>
+                    </button>
+                  </div>
+
+                  <input
+                    ref={jsonImportInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportJSON}
+                    style={{ display: 'none' }}
+                  />
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-[10px] text-blue-900 font-medium leading-relaxed">
+                      <strong>📌 Tip:</strong> Use JSON for complete data backup with all records and history. Use CSV for reports in Excel/Sheets. Share Summary is perfect for quick statistics via WhatsApp or Email. Import JSON to restore a complete backup.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
                   <div>
                     <h3 className="font-bold text-red-950 mb-1 flex items-center gap-2">
@@ -1189,26 +1596,57 @@ const Settings: React.FC<SettingsProps> = ({
                       <div className="flex flex-wrap gap-2">
                         {availableSessions.map((session) => (
                           <div key={session} className="px-4 py-2 rounded-xl text-xs font-bold border bg-red-50 border-red-200 text-red-900 flex items-center justify-between gap-4">
-                            <span>{session}</span>
+                            <span>{session} {session === currentSession && <span className="text-[9px] bg-red-200 px-2 py-0.5 rounded ml-1 font-black">ACTIVE</span>}</span>
                             <button
                               onClick={() => {
+                                if (session === currentSession) {
+                                  alert("⚠️ Cannot lock the currently active session! Please switch to another session first.");
+                                  return;
+                                }
                                 const isLocked = lockedSessions.includes(session);
+                                if (!isLocked) {
+                                  const confirmed = window.confirm(`🔒 Lock Session ${session}?\n\nThis session will become READ-ONLY and you won't be able to edit student records, add fees, or make payments.\n\nAre you sure?`);
+                                  if (!confirmed) return;
+                                }
                                 const newLocked = isLocked
                                   ? lockedSessions.filter(s => s !== session)
                                   : [...lockedSessions, session];
                                 setLockedSessions(newLocked);
                                 localStorage.setItem('ues_locked_sessions', JSON.stringify(newLocked));
+                                if (addLog) addLog('Session Lock Toggle', `Session ${session} is now ${!isLocked ? 'LOCKED' : 'UNLOCKED'}`, 'SYSTEM');
                               }}
                               className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${lockedSessions.includes(session)
-                                ? 'bg-amber-600 text-white shadow-inner'
+                                ? 'bg-amber-600 text-white shadow-inner hover:bg-amber-700'
                                 : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
                                 }`}
                             >
-                              {lockedSessions.includes(session) ? '🔒 Locked (Read-Only)' : '🔓 Active'}
+                              {lockedSessions.includes(session) ? '🔒 Locked' : '🔓 Active'}
                             </button>
                           </div>
                         ))}
                       </div>
+                      
+                      {lockedSessions.length === availableSessions.length - 1 && availableSessions.length > 1 && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mt-4">
+                          <p className="text-[10px] text-red-800 font-bold">⚠️ Almost all sessions are locked! Only {availableSessions.find(s => !lockedSessions.includes(s))} is active.</p>
+                        </div>
+                      )}
+
+                      {lockedSessions.length > 0 && (
+                        <button
+                          onClick={() => {
+                            const confirmed = window.confirm(`🔓 Unlock ALL Sessions?\n\nThis will make all sessions editable again.\n\nAre you sure?`);
+                            if (!confirmed) return;
+                            setLockedSessions([]);
+                            localStorage.setItem('ues_locked_sessions', JSON.stringify([]));
+                            if (addLog) addLog('Emergency Unlock', 'All sessions unlocked', 'SYSTEM');
+                            alert('✅ All sessions are now unlocked and editable!');
+                          }}
+                          className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                          🔓 Unlock All Sessions
+                        </button>
+                      )}
                     </div>
 
                     <div className="space-y-4">
@@ -1216,34 +1654,64 @@ const Settings: React.FC<SettingsProps> = ({
                       <div className="flex gap-2">
                         <input
                           type="text"
-                          placeholder="e.g. 2027-28"
+                          placeholder="e.g. 2027-28 (Next session only)"
                           value={newSessionInput}
                           onChange={(e) => setNewSessionInput(e.target.value)}
                           className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-red-950 focus:ring-2 focus:ring-red-900 outline-none"
                         />
                         <button
                           onClick={() => {
-                            if (!newSessionInput || !/^\d{4}-\d{2}$/.test(newSessionInput)) {
-                              alert("Please enter a valid session format (e.g., 2027-28)");
+                            const input = newSessionInput.trim();
+                            
+                            // Format validation
+                            if (!input || !/^\d{4}-\d{2}$/.test(input)) {
+                              alert("❌ Invalid format!\n\nUse YYYY-YY format (e.g., 2027-28)");
                               return;
                             }
-                            if (availableSessions.includes(newSessionInput)) {
-                              alert("Session already exists!");
+
+                            // Parse session
+                            const parts = input.split('-');
+                            const fromYear = parseInt(parts[0]);
+                            const toYearShort = parseInt(parts[1]);
+                            const toYear = parseInt(`20${parts[1]}`);
+
+                            // Logical validation
+                            if (toYear !== fromYear + 1) {
+                              alert(`❌ Invalid session logic!\n\nFor session starting in ${fromYear}, ending year must be ${fromYear + 1} (got ${toYear}).`);
                               return;
                             }
-                            // Initialize fee structure for the new session first
-                            onUpdateFees(CLASS_FEE_STRUCTURE, newSessionInput);
-                            setAvailableSessions([newSessionInput, ...availableSessions]);
+
+                            // Check if already exists
+                            if (availableSessions.includes(input)) {
+                              alert("⚠️ Session already exists!");
+                              return;
+                            }
+
+                            // Find the latest session to ensure no skipping
+                            const sortedSessions = [...availableSessions].sort().reverse();
+                            const latestSession = sortedSessions[0];
+
+                            if (latestSession) {
+                              const expectedNext = getNextSession(latestSession);
+                              if (input !== expectedNext) {
+                                alert(`❌ Session skipping not allowed!\n\nLatest session: ${latestSession}\nExpected next: ${expectedNext}\nYou entered: ${input}\n\n⚠️ Sessions must be sequential without gaps.`);
+                                return;
+                              }
+                            }
+
+                            // All validations passed - register the session
+                            onUpdateFees(CLASS_FEE_STRUCTURE, input);
+                            setAvailableSessions([input, ...availableSessions]);
                             setNewSessionInput('');
-                            if (addLog) addLog('New Session Registered', `Added Session ${newSessionInput} and initialized with default fees.`, 'SYSTEM');
-                            alert(`Session ${newSessionInput} registered successfully!`);
+                            if (addLog) addLog('New Session Registered', `Added Session ${input} and initialized with default fees.`, 'SYSTEM');
+                            alert(`✅ Session ${input} registered successfully! (Next valid: ${getNextSession(input)})`);
                           }}
                           className="px-6 py-2 bg-red-950 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900 shadow-md active:scale-95 transition-all"
                         >
                           Add
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-medium">Tip: Use YYYY-YY format (Example: 2027-28)</p>
+                      <p className="text-[10px] text-slate-400 font-medium">✓ Format: YYYY-YY (e.g., 2027-28) • Must be next session • No skipping allowed</p>
                     </div>
                   </div>
 
@@ -1260,28 +1728,87 @@ const Settings: React.FC<SettingsProps> = ({
 
                   <div className="space-y-3">
                     {upiAccounts.map((acc, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <input
-                          type="text"
-                          value={acc}
-                          onChange={(e) => {
-                            const updated = [...upiAccounts];
-                            updated[idx] = e.target.value;
-                            setUpiAccounts(updated);
-                          }}
-                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-red-950 focus:ring-2 focus:ring-red-900 outline-none"
-                        />
-                        <button
-                          onClick={() => {
-                            const updated = upiAccounts.filter((_, i) => i !== idx);
-                            setUpiAccounts(updated);
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                        >
-                          ✕
-                        </button>
+                      <div key={idx} className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl p-4 border border-slate-200 space-y-3">
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1 block">UPI ID {idx + 1}</label>
+                            <input
+                              type="text"
+                              placeholder="9876543210@okaxis or name@bankupi"
+                              value={acc}
+                              onChange={(e) => {
+                                const updated = [...upiAccounts];
+                                updated[idx] = e.target.value;
+                                setUpiAccounts(updated);
+                              }}
+                              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold text-red-950 focus:ring-2 focus:ring-red-900 outline-none"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              const updated = upiAccounts.filter((_, i) => i !== idx);
+                              const updatedQr = { ...upiQrCodes };
+                              delete updatedQr[idx.toString()];
+                              setUpiQrCodes(updatedQr);
+                              localStorage.setItem('ues_upi_qr_codes', JSON.stringify(updatedQr));
+                              setUpiAccounts(updated);
+                            }}
+                            className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {/* QR Code Section */}
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                          {upiQrCodes[idx.toString()] ? (
+                            <div className="col-span-2 flex flex-col items-center gap-2">
+                              <div className="w-full max-w-[150px] bg-white border-2 border-green-300 rounded-xl p-2 overflow-hidden">
+                                <img src={upiQrCodes[idx.toString()]} alt={`QR Code for ${acc}`} className="w-full h-auto" />
+                              </div>
+                              <p className="text-[9px] text-green-700 font-bold">✓ QR Code Uploaded</p>
+                              <button
+                                onClick={() => {
+                                  const updated = { ...upiQrCodes };
+                                  delete updated[idx.toString()];
+                                  setUpiQrCodes(updated);
+                                  localStorage.setItem('ues_upi_qr_codes', JSON.stringify(updated));
+                                }}
+                                className="text-[9px] px-3 py-1 bg-amber-100 text-amber-800 rounded-lg font-black hover:bg-amber-200 transition-all"
+                              >
+                                Change QR
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSelectedQrUpiIndex(idx);
+                                setTimeout(() => qrFileInputRef.current?.click(), 0);
+                              }}
+                              disabled={!acc || acc.trim() === ''}
+                              className="col-span-2 flex items-center justify-center gap-2 py-3 px-3 bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl text-[10px] font-black text-blue-700 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            >
+                              <span>📱</span> Upload QR Code
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
+
+                    <input
+                      ref={qrFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (selectedQrUpiIndex !== null) {
+                          handleQrUpload(e, selectedQrUpiIndex);
+                          setSelectedQrUpiIndex(null);
+                        }
+                        if (qrFileInputRef.current) qrFileInputRef.current.value = '';
+                      }}
+                      className="hidden"
+                    />
+
                     <button
                       onClick={() => setUpiAccounts([...upiAccounts, ''])}
                       disabled={isReadOnly}
@@ -1356,7 +1883,15 @@ const Settings: React.FC<SettingsProps> = ({
                             <label className="text-[10px] font-black uppercase text-slate-400">Migrate From</label>
                             <select
                               value={promoFromSession}
-                              onChange={(e) => setPromoFromSession(e.target.value)}
+                              onChange={(e) => {
+                                setPromoFromSession(e.target.value);
+                                // Auto-populate next session
+                                if (e.target.value) {
+                                  setPromoToSession(getNextSession(e.target.value));
+                                } else {
+                                  setPromoToSession('');
+                                }
+                              }}
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500"
                             >
                               <option value="">Select From</option>
@@ -1364,15 +1899,25 @@ const Settings: React.FC<SettingsProps> = ({
                             </select>
                           </div>
                           <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-slate-400">Migrate To</label>
+                            <label className="text-[10px] font-black uppercase text-slate-400">Migrate To (Next Session Only)</label>
                             <select
                               value={promoToSession}
                               onChange={(e) => setPromoToSession(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500"
+                              disabled={!promoFromSession}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <option value="">Select To</option>
-                              {availableSessions.map(s => <option key={s} value={s}>{s}</option>)}
+                              <option value="">
+                                {!promoFromSession ? 'Select From first' : 'Select To'}
+                              </option>
+                              {promoFromSession && (
+                                <option value={getNextSession(promoFromSession)}>
+                                  {getNextSession(promoFromSession)} (Next Required)
+                                </option>
+                              )}
                             </select>
+                            {promoFromSession && promoToSession && (
+                              <p className="text-[9px] text-amber-600 font-bold">✅ Only next session allowed</p>
+                            )}
                           </div>
                         </div>
                       </div>

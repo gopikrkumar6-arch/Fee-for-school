@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { FeeRecord, PaymentMode, Transaction, FeeCategory, ClassFeeMetadata, AcademicStatus, ReceiptBook, CancelledReceipt, BranchCollection, DueReminder } from '../types';
 import { SCHOOL_INFO, formatDate, getStudentPhoto, BRANCH_OPTIONS } from '../constants';
+import printService from '../services/printService';
 
 const SESSION_MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 const EXAM_TERMS = ['Term 1', 'Term 2', 'Term 3'] as const;
@@ -24,6 +25,7 @@ interface DashboardProps {
   setUpiAccounts: React.Dispatch<React.SetStateAction<string[]>>;
   bankAccounts: string[];
   setBankAccounts: React.Dispatch<React.SetStateAction<string[]>>;
+  upiQrCodes?: { [key: string]: string };
   onSelectStudent?: (student: FeeRecord) => void;
 }
 
@@ -45,6 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   setUpiAccounts,
   bankAccounts,
   setBankAccounts,
+  upiQrCodes = {},
   onSelectStudent
 }) => {
   const [selectedStudent, setSelectedStudent] = useState<FeeRecord | null>(null);
@@ -87,6 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [additionalDiscount, setAdditionalDiscount] = useState('');
   const [waiverPercentage, setWaiverPercentage] = useState<string>('0');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('UPI');
+  const [selectedUpiAccountIndex, setSelectedUpiAccountIndex] = useState<number>(0);
 
   const [isOnTimeWaiverActive, setIsOnTimeWaiverActive] = useState(false);
   const [onTimeWaiverAmount, setOnTimeWaiverAmount] = useState('0');
@@ -119,6 +123,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const [isUPIAccountSelectOpen, setIsUPIAccountSelectOpen] = useState(false);
   const [isUPIAccountEditMode, setIsUPIAccountEditMode] = useState(false);
+  const [selectedUpiForPayment, setSelectedUpiForPayment] = useState<{ name: string; index: number } | null>(null);
 
   const [isBankSelectOpen, setIsBankSelectOpen] = useState(false);
   const [isBankEditMode, setIsBankEditMode] = useState(false);
@@ -913,11 +918,108 @@ const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {isUPIAccountSelectOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-indigo-950/40 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-md w-full p-8 border border-slate-100 animate-in zoom-in-95">
-            <div className="flex justify-between items-center mb-6"><div className="flex items-center gap-3"><span className="text-2xl">📱</span><h3 className="text-xl font-bold text-indigo-950 serif-font italic">Select UPI Receiver</h3></div><button onClick={() => setIsUPIAccountEditMode(!isUPIAccountEditMode)} className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{isUPIAccountEditMode ? 'Done' : 'Edit List'}</button></div>
-            <div className="space-y-3 mb-8">{upiAccounts.map((name, idx) => (<div key={idx} className="relative group">{isUPIAccountEditMode ? (<input value={name} onChange={(e) => { const newNames = [...upiAccounts]; newNames[idx] = e.target.value; setUpiAccounts(newNames); }} className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 font-bold text-slate-800 focus:border-indigo-900 outline-none" />) : (<button onClick={() => finalizeTransaction(name)} className="w-full text-left bg-white hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-200 rounded-2xl p-4 transition-all group flex items-center justify-between"><span className="font-bold text-indigo-950">{name}</span><span className="opacity-0 group-hover:opacity-100 text-[10px] font-black uppercase text-indigo-700 tracking-widest">Select</span></button>)}</div>))}</div>
-            <button onClick={() => setIsUPIAccountSelectOpen(false)} className="w-full py-4 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-50 rounded-2xl transition-all">Cancel Transaction</button>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-indigo-950/40 backdrop-blur-md p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 border border-slate-100 animate-in zoom-in-95 my-8">
+            <div className="flex justify-between items-center mb-6"><div className="flex items-center gap-3"><span className="text-2xl">📱</span><h3 className="text-xl font-bold text-indigo-950 serif-font italic">Select UPI Account</h3></div></div>
+            
+            <div className="space-y-3 mb-8 max-h-[60vh] overflow-y-auto">
+              {upiAccounts.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <p className="text-sm italic">No UPI accounts configured. Please ask admin to add them in Settings.</p>
+                </div>
+              ) : (
+                upiAccounts.map((name, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSelectedUpiForPayment({ name, index: idx });
+                      setIsUPIAccountSelectOpen(false);
+                    }}
+                    className="w-full text-left bg-white hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-400 rounded-2xl p-4 transition-all group flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-bold text-indigo-950 block text-lg">{name}</span>
+                      {upiQrCodes[idx.toString()] && (
+                        <span className="text-[9px] text-green-600 font-bold">✓ QR Code Available</span>
+                      )}
+                    </div>
+                    <span className="opacity-0 group-hover:opacity-100 text-[10px] font-black uppercase text-indigo-700 tracking-widest bg-indigo-50 px-3 py-1 rounded transition-opacity">Next</span>
+                  </button>
+                ))
+              )}
+            </div>
+            
+            <button onClick={() => setIsUPIAccountSelectOpen(false)} className="w-full py-4 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-50 rounded-2xl transition-all border border-slate-200">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {selectedUpiForPayment && (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 border border-slate-100 animate-in zoom-in duration-300">
+            <div className="text-center space-y-6">
+              {/* QR Code */}
+              {upiQrCodes[selectedUpiForPayment.index.toString()] ? (
+                <div className="flex flex-col items-center gap-4">
+                  <p className="text-xs font-black uppercase text-slate-400 tracking-widest">Scan QR Code to Pay</p>
+                  <div className="w-full max-w-xs bg-white border-4 border-green-400 rounded-2xl p-4 shadow-lg">
+                    <img 
+                      src={upiQrCodes[selectedUpiForPayment.index.toString()]} 
+                      alt={`QR Code for ${selectedUpiForPayment.name}`} 
+                      className="w-full h-auto"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-sm text-amber-800 font-bold">⚠️ No QR Code Uploaded</p>
+                  <p className="text-xs text-amber-700 mt-1">Contact admin to upload QR code for this account</p>
+                </div>
+              )}
+
+              {/* Amount */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200 p-6 space-y-2">
+                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Amount to Pay</p>
+                <p className="text-5xl font-black text-green-700">₹{calculateTotal().toLocaleString()}</p>
+              </div>
+
+              {/* Payee Info */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                <p className="text-xs font-bold uppercase text-slate-400 mb-1 tracking-widest">Payee</p>
+                <p className="text-lg font-bold text-slate-800">{selectedUpiForPayment.name}</p>
+              </div>
+
+              {/* Instructions */}
+              <div className="text-left bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs font-bold text-blue-900 mb-2">📱 How to Pay:</p>
+                <ol className="text-[10px] text-blue-800 space-y-1">
+                  <li>1. Open Google Pay, PhonePe, or any UPI app</li>
+                  <li>2. Tap "Pay" or "Send Money"</li>
+                  <li>3. Scan this QR code</li>
+                  <li>4. Enter amount: <strong>₹{calculateTotal().toLocaleString()}</strong></li>
+                  <li>5. Complete payment</li>
+                </ol>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => setSelectedUpiForPayment(null)}
+                  className="flex-1 py-3 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={() => {
+                    finalizeTransaction(selectedUpiForPayment.name);
+                    setSelectedUpiForPayment(null);
+                  }}
+                  className="flex-1 py-3 bg-green-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all active:scale-95"
+                >
+                  Payment Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1049,7 +1151,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="max-w-[1600px] mx-auto p-4 grid lg:grid-cols-12 gap-4 items-start">
           <div className="lg:col-span-4 flex flex-col bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden h-[calc(100vh-7rem)] sticky top-24">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 shrink-0"><div className="relative mb-3"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span><input type="text" placeholder="Search by Name or ID..." className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-12 py-3 text-base font-bold outline-none focus:ring-2 focus:ring-red-900 transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />{searchTerm.length > 0 && (<button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-red-900 hover:text-white transition-all shadow-sm group active:scale-90"><span className="text-lg font-black leading-none group-hover:scale-110 transition-transform">×</span></button>)}</div><div className="px-1 text-[10px] text-right text-slate-400 uppercase font-bold tracking-widest">{filteredFees.length} Records Found</div></div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">{filteredFees.map(fee => (<button key={fee.id} onClick={() => { setSelectedStudent(fee); if (onSelectStudent) onSelectStudent(fee); }} className={`w-full text-left p-3 rounded-xl transition-all border group flex items-center gap-3 ${selectedStudent?.id === fee.id ? 'bg-red-950 border-red-950 shadow-md' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'}`}><div className="shrink-0" onClick={(e) => { e.stopPropagation(); setFullScreenPhoto(getStudentPhoto(fee.photo, fee.studentName)); }}><img src={getStudentPhoto(fee.photo, fee.studentName)} alt={fee.studentName} className={`w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm hover:scale-110 transition-transform cursor-pointer bg-slate-200 ${fee.academicStatus === 'Dropped' || fee.status === 'PASSED' ? 'grayscale' : ''}`} /></div><div className="flex-1 min-w-0"><div className="flex justify-between items-start mb-1"><div className={`font-bold text-base line-clamp-1 ${selectedStudent?.id === fee.id ? 'text-white' : fee.academicStatus === 'Dropped' || fee.status === 'PASSED' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fee.studentName}</div><span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ml-2 whitespace-nowrap ${fee.status === 'PASSED' ? (selectedStudent?.id === fee.id ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-700') : fee.academicStatus === 'Dropped' ? (selectedStudent?.id === fee.id ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700') : fee.academicStatus === 'Transfer' ? (selectedStudent?.id === fee.id ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700') : fee.status === 'Paid' ? (selectedStudent?.id === fee.id ? 'bg-green-50 text-white' : 'bg-green-100 text-green-700') : (selectedStudent?.id === fee.id ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700')}`}>{fee.status === 'PASSED' ? 'GRADUATED' : fee.academicStatus === 'Dropped' ? 'DROPPED' : fee.academicStatus === 'Transfer' ? 'TRANSFER' : fee.status}</span></div><div className={`flex justify-between text-xs font-medium ${selectedStudent?.id === fee.id ? 'text-red-200' : 'text-slate-400'}`}><span>{fee.grade}-{fee.section} ({fee.rollNo})</span><span className={selectedStudent?.id === fee.id ? 'text-white' : 'text-slate-600'}>Due: ₹{getNetDue(fee).toLocaleString()}</span></div></div></button>))}{filteredFees.length === 0 && <div className="p-8 text-center text-slate-400 text-sm">No students found.</div>}</div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">{filteredFees.map(fee => (<button key={fee.id} onClick={() => { setSelectedStudent(fee); if (onSelectStudent) onSelectStudent(fee); }} className={`w-full text-left p-3 rounded-xl transition-all border group flex items-center gap-3 ${selectedStudent?.id === fee.id ? 'bg-red-950 border-red-950 shadow-md' : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'}`}><div className="shrink-0" onClick={(e) => { e.stopPropagation(); setFullScreenPhoto(getStudentPhoto(fee.photo, fee.studentName)); }}><img src={getStudentPhoto(fee.photo, fee.studentName)} alt={fee.studentName} className={`w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm hover:scale-110 transition-transform cursor-pointer bg-slate-200 ${fee.academicStatus === 'Dropped' || fee.status === 'PASSED' ? 'grayscale' : ''}`} /></div><div className="flex-1 min-w-0"><div className="flex justify-between items-start mb-1"><div className={`font-bold text-base line-clamp-1 ${selectedStudent?.id === fee.id ? 'text-white' : fee.academicStatus === 'Dropped' || fee.status === 'PASSED' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fee.studentName}</div><span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ml-2 whitespace-nowrap ${fee.status === 'PASSED' ? (selectedStudent?.id === fee.id ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-700') : fee.academicStatus === 'Dropped' ? (selectedStudent?.id === fee.id ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700') : fee.academicStatus === 'Transfer' ? (selectedStudent?.id === fee.id ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700') : fee.status === 'Paid' ? (selectedStudent?.id === fee.id ? 'bg-green-50 text-white' : 'bg-green-100 text-green-700') : (selectedStudent?.id === fee.id ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700')}`}>{fee.status === 'PASSED' ? 'GRADUATED' : fee.academicStatus === 'Dropped' ? 'DROPPED' : fee.academicStatus === 'Transfer' ? 'TRANSFER' : fee.status}</span></div><div className="flex flex-col gap-1">
+                        <div className={`flex justify-between text-xs font-medium ${selectedStudent?.id === fee.id ? 'text-red-200' : 'text-slate-400'}`}><span>{fee.grade}-{fee.section} ({fee.rollNo})</span><span className={selectedStudent?.id === fee.id ? 'text-white' : 'text-slate-600'}>Due: ₹{getNetDue(fee).toLocaleString()}</span></div>
+                        {fee.previousClass && fee.previousRollNo ? (
+                          <div className={`text-[10px] font-semibold ${selectedStudent?.id === fee.id ? 'text-red-100' : 'text-slate-500'}`}>
+                            ↳ from {fee.previousClass} (Roll {fee.previousRollNo})
+                          </div>
+                        ) : !fee.previousClass && !fee.previousRollNo ? (
+                          <div className={`text-[10px] font-bold uppercase tracking-widest ${selectedStudent?.id === fee.id ? 'text-amber-200' : 'text-amber-600'}`}>
+                            🆕 New
+                          </div>
+                        ) : null}
+                      </div></div></button>))}{filteredFees.length === 0 && <div className="p-8 text-center text-slate-400 text-sm">No students found.</div>}</div>
           </div>
           <div className="lg:col-span-8 bg-white rounded-2xl shadow-lg border border-slate-200 flex flex-col min-h-[calc(100vh-7rem)]">
             {selectedStudent && currentStudentConfig ? (
@@ -1152,7 +1265,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {activeTab === 'collect' && (
                   <div className="p-6 bg-slate-50">
                     {success ? (
-                      <div className="flex flex-col items-center justify-center text-center animate-in zoom-in duration-300 py-12"><div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-sm"><svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg></div><h3 className="text-2xl font-bold text-red-950 mb-2">{lastReceipt?.branch ? 'Branch Entry Logged!' : 'Receipt Generated!'}</h3><p className="text-slate-500 mb-8">Transaction successfully recorded in the ledger{lastReceipt?.account ? ` for ${lastReceipt.account}` : ''}{lastReceipt?.branch ? ` at ${lastReceipt.branch}` : ''}.</p><div className="flex gap-3"><button onClick={() => window.print()} className="bg-red-950 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-red-900">Print Receipt</button><button onClick={() => { setSuccess(false); setLastReceipt(null); setIsOtherBranch(false); }} className="bg-white text-slate-600 px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-slate-200 hover:bg-slate-50">New Collection</button></div></div>
+                      <div className="flex flex-col items-center justify-center text-center animate-in zoom-in duration-300 py-12"><div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-sm"><svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg></div><h3 className="text-2xl font-bold text-red-950 mb-2">{lastReceipt?.branch ? 'Branch Entry Logged!' : 'Receipt Generated!'}</h3><p className="text-slate-500 mb-8">Transaction successfully recorded in the ledger{lastReceipt?.account ? ` for ${lastReceipt.account}` : ''}{lastReceipt?.branch ? ` at ${lastReceipt.branch}` : ''}.</p><div className="flex gap-3"><button onClick={() => printService.safePrint()} className="bg-red-950 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-red-900">Print Receipt</button><button onClick={() => { setSuccess(false); setLastReceipt(null); setIsOtherBranch(false); }} className="bg-white text-slate-600 px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-slate-200 hover:bg-slate-50">New Collection</button></div></div>
                     ) : (
                       <div className="max-w-2xl mx-auto space-y-8">
                         {isDropped && (<div className="p-4 bg-red-50 border-l-4 border-red-600 rounded-r-xl shadow-sm animate-in slide-in-from-top-2"><h4 className="font-black text-red-900 uppercase text-xs">EXITED STUDENT SETTLEMENT</h4><p className="text-[10px] text-red-700 mt-1 leading-relaxed">This student was dropped in <strong>{selectedStudent.statusMetadata?.dropMonth}</strong>. Only prior dues and arrears are payable. Exam and misc fees are strictly blocked.</p><div className="mt-2 flex gap-4 text-[10px] font-bold text-red-950"><span>Total Settlable Debt: ₹{getNetDue(selectedStudent).toLocaleString()}</span></div></div>)}

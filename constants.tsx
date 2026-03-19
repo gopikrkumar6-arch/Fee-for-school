@@ -12,7 +12,6 @@ export const SCHOOL_INFO = {
 };
 
 export const NAV_LINKS = [
-  { name: 'Home', path: Page.Home, restricted: false },
   { name: 'Student Directory', path: Page.Directory, restricted: true },
   { name: 'Ledger Portal', path: Page.Dashboard, restricted: true },
   { name: 'Campus Entry', path: Page.CounterEntry, restricted: true },

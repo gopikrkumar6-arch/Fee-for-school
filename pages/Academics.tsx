@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SCHOOL_INFO, CLASS_FEE_STRUCTURE, formatDate } from '../constants';
 import { FeeCategory } from '../types';
+import printService from '../services/printService';
 
 interface AcademicsProps {
   feeStructure?: FeeCategory[];
@@ -193,7 +194,7 @@ const Academics: React.FC<AcademicsProps> = ({
           </style>
         </head>
         <body>
-          <button class="print-btn-fixed" onclick="window.print()">
+          <button class="print-btn-fixed" onclick="setTimeout(() => window.print(), 100)">
             Confirm Print
           </button>
           
@@ -231,7 +232,7 @@ const Academics: React.FC<AcademicsProps> = ({
             window.onload = function() {
               setTimeout(() => {
                 window.print();
-              }, 500);
+              }, 100);
             };
           </script>
         </body>
@@ -271,7 +272,7 @@ const Academics: React.FC<AcademicsProps> = ({
           </style>
         </head>
         <body>
-          <button class="print-btn" onclick="window.print()">🖨️ Print Card</button>
+          <button class="print-btn" onclick="setTimeout(() => window.print(), 100)">🖨️ Print Card</button>
           <div class="header">
             <div class="school-name">${SCHOOL_INFO.name}</div>
             <div class="sub-header">Official Fee Estimation • Session ${session}</div>
@@ -306,7 +307,7 @@ const Academics: React.FC<AcademicsProps> = ({
           </div>
           <script>
             window.onload = function() { 
-              window.print(); 
+              setTimeout(() => window.print(), 100);
             }
           </script>
         </body>

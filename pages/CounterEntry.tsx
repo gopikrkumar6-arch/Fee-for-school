@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { BranchCollection, PaymentMode, ReceiptBook, CancelledReceipt, FeeRecord, FeeCategory } from '../types';
 import { BRANCH_OPTIONS, formatDate, SCHOOL_INFO } from '../constants';
+import printService from '../services/printService';
 
 interface CounterEntryProps {
   branchCollections: BranchCollection[];
@@ -144,7 +145,7 @@ const CounterEntry: React.FC<CounterEntryProps> = ({
             <h2 className="text-3xl font-black text-red-950 serif-font italic mb-2">Campus Payment Verified!</h2>
             <p className="text-slate-500 mb-8">Receipt <b>{lastEntry.receiptNo}</b> has been issued for student <b>{lastEntry.studentName}</b> ({lastEntry.branch}).</p>
             <div className="flex gap-4 justify-center">
-              <button onClick={() => window.print()} className="bg-red-950 text-white px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-red-900 transition-all">Print Receipt</button>
+              <button onClick={() => printService.safePrint()} className="bg-red-950 text-white px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-red-900 transition-all">Print Receipt</button>
               <button onClick={() => setSuccess(false)} className="bg-slate-100 text-slate-600 px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">New Entry</button>
             </div>
           </div>

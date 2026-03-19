@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { FeeRecord, Transaction } from '../types';
 import { SCHOOL_INFO, getFeeConfig, formatDate, CLASS_FEE_STRUCTURE } from '../constants';
+import printService from '../services/printService';
 
 const SESSION_MONTHS = ['APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR'];
 const EXAM_TERMS = ['Term 1', 'Term 2', 'Term 3'];
@@ -11,9 +12,19 @@ interface DemandSlipProps {
   onUpdateStudents: (list: FeeRecord[]) => void;
   currentSession: string;
   isReadOnly?: boolean;
+  feeStructure?: any[];
 }
 
-const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, currentSession, isReadOnly = false }) => {
+const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, currentSession, isReadOnly = false, feeStructure = [] }) => {
+  const findFeeConfig = (grade: string) => {
+    const structureToUse = feeStructure.length > 0 ? feeStructure : CLASS_FEE_STRUCTURE;
+    for (const cat of structureToUse) {
+      const cls = cat.classes.find((c: any) => c.name === grade);
+      if (cls) return cls;
+    }
+    return getFeeConfig(grade); // Fallback to default in constants if not found
+  };
+
   const [demandMonth, setDemandMonth] = useState('APR');
 
   const toggleBulkMonth = (month: string) => {
@@ -43,8 +54,9 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
 
 
   const availableClassNames = useMemo(() => {
-    return CLASS_FEE_STRUCTURE.flatMap(cat => cat.classes.map(cls => cls.name));
-  }, []);
+    const structureToUse = feeStructure.length > 0 ? feeStructure : CLASS_FEE_STRUCTURE;
+    return structureToUse.flatMap(cat => cat.classes.map((cls: any) => cls.name));
+  }, [feeStructure]);
 
   const sessionStudents = useMemo(() => students.filter(s => s.academicSession === currentSession), [students, currentSession]);
 
@@ -103,7 +115,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
         if (student.statusMetadata?.transferMonth && student.statusMetadata?.oldClass) {
           const transferIndex = SESSION_MONTHS.indexOf(student.statusMetadata.transferMonth);
           if (currentIndex < transferIndex) {
-            return getFeeConfig(student.statusMetadata.oldClass);
+            return findFeeConfig(student.statusMetadata.oldClass);
           }
         }
       }
@@ -112,10 +124,10 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
     if (student.academicStatus === 'Transfer' && student.statusMetadata?.transferMonth && student.statusMetadata?.oldClass) {
       const transferIndex = SESSION_MONTHS.indexOf(student.statusMetadata.transferMonth);
       if (currentIndex < transferIndex) {
-        return getFeeConfig(student.statusMetadata.oldClass);
+        return findFeeConfig(student.statusMetadata.oldClass);
       }
     }
-    return getFeeConfig(student.grade);
+    return findFeeConfig(student.grade);
   };
 
   const checkSequence = (student: FeeRecord, month: string) => {
@@ -137,7 +149,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
 
   const handleMiscSubmit = () => {
     if (!miscStudent) return;
-    const config = getFeeConfig(miscStudent.grade);
+    const config = findFeeConfig(miscStudent.grade);
     let totalMiscAmount = 0;
     const itemsAdded: string[] = [];
     if (miscSelection.tie) { totalMiscAmount += config.tie; itemsAdded.push(`Tie (₹${config.tie})`); }
@@ -225,11 +237,12 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
                 </tr>
               </thead>
               <tbody>
-                ${Object.keys(miscSelection).map(key => { 
-                  if (!miscSelection[key]) return ''; 
-                  const val = (config as any)[key]; 
-                  return `<tr><td>${key.toUpperCase()} KIT CHARGES</td><td align="center">${val}</td><td></td></tr>`; 
-                }).join('')}
+                ${Object.keys(miscSelection).map(key => {
+        if (!miscSelection[key]) return '';
+        const val = (config as any)[key];
+        if (val <= 0) return '';
+        return `<tr><td>${key.toUpperCase()} KIT CHARGES</td><td align="center">${val}</td><td></td></tr>`;
+      }).join('')}
                 <tr class="total-row">
                   <td align="right">NET PAYABLE</td>
                   <td align="center">${totalMiscAmount}</td>
@@ -243,7 +256,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
               <div class="signature">Sign.</div>
             </div>
           </div>
-          <script>window.onload = function() { window.print(); }</script>
+          <script>window.onload = function() { setTimeout(() => { window.print(); }, 100); }</script>
         </body>
         </html>`);
 
@@ -340,26 +353,34 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
                 </tr>
               </thead>
               <tbody>
+                ${netFee > 0 ? `
                 <tr>
                   <td>Fee of Month – ${fullMonth} '${yearSuffix} -</td>
                   <td align="center">${netFee}</td>
                   <td></td>
                 </tr>
+                ` : ''}
+                ${backDues > 0 ? `
                 <tr>
                   <td>Back Dues –</td>
                   <td align="center">${backDues}</td>
                   <td></td>
                 </tr>
+                ` : ''}
+                ${examFeeAmount > 0 ? `
                 <tr>
                   <td>Exam Fee –</td>
                   <td align="center">${examFeeAmount}</td>
                   <td></td>
                 </tr>
+                ` : ''}
+                ${idCardAmount > 0 ? `
                 <tr>
                   <td>Other Charge –</td>
                   <td align="center">${idCardAmount}</td>
                   <td></td>
                 </tr>
+                ` : ''}
                 <tr class="total-row">
                   <td align="right" class="bold">Total</td>
                   <td align="center" class="bold">${netPayable}</td>
@@ -500,7 +521,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
           }
 
           window.onload = () => {
-            setTimeout(() => { window.print(); }, 500);
+            setTimeout(() => { window.print(); }, 100);
           };
         </script>
       </body>
@@ -573,7 +594,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
             addedIdCard = true;
           }
 
-          const config = getFeeConfig(currentStudent.grade);
+          const config = findFeeConfig(currentStudent.grade);
           let totalMiscAmount = 0;
           const itemsAdded: string[] = [];
           Object.keys(bulkMiscSelection).forEach(key => {
@@ -696,7 +717,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
 
             <div className="space-y-3 mb-8">
               {['tie', 'belt', 'diary', 'idCard', 'booklet'].map(item => {
-                const cost = (getFeeConfig(miscStudent.grade) as any)[item];
+                const cost = (findFeeConfig(miscStudent.grade) as any)[item];
                 return (
                   <label key={item} className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${miscSelection[item] ? 'bg-amber-50 border-amber-500' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}>
                     <div className="flex items-center gap-3">
@@ -717,7 +738,7 @@ const DemandSlip: React.FC<DemandSlipProps> = ({ students, onUpdateStudents, cur
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center mb-8">
               <span className="text-[10px] font-black uppercase text-slate-400">Net Misc Total</span>
               <span className="text-2xl font-black text-red-950">
-                ₹{Object.keys(miscSelection).reduce((acc, k) => miscSelection[k] ? acc + (getFeeConfig(miscStudent.grade) as any)[k] : acc, 0)}
+                ₹{Object.keys(miscSelection).reduce((acc, k) => miscSelection[k] ? acc + (findFeeConfig(miscStudent.grade) as any)[k] : acc, 0)}
               </span>
             </div>
 
