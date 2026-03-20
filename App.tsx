@@ -45,6 +45,7 @@ const App: React.FC = () => {
   }
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (!isSupabaseConfigured()) return true;
     return localStorage.getItem('ues_is_authenticated') === 'true';
   });
 
@@ -53,7 +54,8 @@ const App: React.FC = () => {
       setIsAuthenticated(true);
       localStorage.setItem('ues_is_authenticated', 'true');
     } else if (!authLoading && !supabaseEnabled) {
-      // If supabase is not enabled, we rely on local isAuthenticated state
+      setIsAuthenticated(true);
+      localStorage.setItem('ues_is_authenticated', 'true');
     } else if (!authLoading && supabaseEnabled && !user) {
       setIsAuthenticated(false);
       localStorage.removeItem('ues_is_authenticated');
