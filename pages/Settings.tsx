@@ -408,7 +408,7 @@ Do you want to proceed with the import?
         const pendingAmount = Math.max(0, (existingArrears + totalHistoryDebits) - totalPaid);
 
         const classMeta = findClassFeeMetadata(nextClass, targetFeeStructure);
-        const newMonthlyFee = classMeta ? classMeta.tuition : 0;
+        let newMonthlyFee = classMeta ? classMeta.tuition : 0; if (student.monthlyFee === 0) newMonthlyFee = 0;
 
         const emptyStatus: MonthlyStatus = {};
         SESSION_MONTHS.forEach(m => emptyStatus[m] = 'Unpaid');
@@ -607,7 +607,7 @@ Do you want to proceed with the import?
     let calculatedFee = monthlyFee ? parseFloat(monthlyFee) : 0;
     let calculatedDiscount = discount ? parseFloat(discount) : 0;
 
-    if (calculatedFee === 0) {
+    if (calculatedFee === 0 && (!monthlyFee || monthlyFee.toString().trim() === '')) {
       const classMeta = findClassFeeMetadata(grade, feeStructure);
       if (classMeta) {
         calculatedFee = classMeta.tuition;
@@ -725,7 +725,7 @@ Do you want to proceed with the import?
       const previousClass = parts[15]?.trim() || '';
       const previousRollNo = parts[16]?.trim() || '';
       const previousBranch = parts[17]?.trim() || '';
-      const monthlyFeeInput = parts[18] ? parseFloat(parts[18].replace(/[^0-9.]/g, '')) : 0;
+      const rawMF = parts[18]?.trim(); const monthlyFeeInput = (rawMF !== undefined && rawMF !== '') ? parseFloat(rawMF.replace(/[^0-9.]/g, '')) : null;
       const discountInput = parts[19] ? parseFloat(parts[19].replace(/[^0-9.]/g, '')) : 0;
       const arrearsInput = parts[20] ? parseFloat(parts[20].replace(/[^0-9.]/g, '')) : 0;
       const photoUrl = parts[21]?.trim() || '';
@@ -741,8 +741,8 @@ Do you want to proceed with the import?
 
       const historicalMatch = matches.length > 0 ? matches[0] : undefined;
 
-      let finalMonthlyFee = monthlyFeeInput;
-      if (finalMonthlyFee === 0) {
+      let finalMonthlyFee = monthlyFeeInput !== null ? monthlyFeeInput : 0;
+      if (monthlyFeeInput === null) {
         const classMeta = findClassFeeMetadata(grade, targetStructure);
         finalMonthlyFee = classMeta ? classMeta.tuition : 8000;
       }
